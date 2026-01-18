@@ -10,19 +10,12 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #0b0f2a, #050716);
   color: white;
-  font-family: 'Montserrat', sans-serif;
+  font-family: Arial, sans-serif;
   text-align: center;
 }
 
 .screen { display: none; padding: 20px; }
 .active { display: block; }
-
-.neon-title {
-  font-size: 28px;
-  font-weight: 800;
-  text-shadow: 0 0 10px #7c8aff;
-  margin-bottom: 15px;
-}
 
 .btn {
   background: linear-gradient(135deg, #6a7cff, #a16bff);
@@ -33,7 +26,6 @@ body {
   font-weight: 600;
   margin: 6px;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(106,124,255,0.7);
 }
 
 .card {
@@ -43,27 +35,6 @@ body {
   padding: 14px;
   margin: 10px auto;
   max-width: 420px;
-}
-
-/* Лобби */
-#players div {
-  padding: 6px;
-  background: rgba(255,255,255,0.06);
-  margin: 4px;
-  border-radius: 10px;
-}
-
-/* Игра */
-.game-header {
-  display: flex;
-  justify-content: space-between;
-  max-width: 700px;
-  margin: 0 auto 10px;
-}
-
-.timer {
-  font-size: 20px;
-  text-shadow: 0 0 8px #ff6bff;
 }
 
 .game-grid {
@@ -78,82 +49,35 @@ body {
   background: rgba(255,255,255,0.06);
   border-radius: 16px;
   padding: 10px;
-  box-shadow: 0 0 8px rgba(124,138,255,0.4);
-}
-
-/* Поля ввода */
-.hint-input, .guess-input {
-  width: 90%;
-  padding: 10px;
-  border-radius: 12px;
-  border: none;
-  background: rgba(255,255,255,0.08);
-  color: white;
-  margin: 6px 0;
-}
-
-/* Последнее слово */
-#lastWordOverlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.9);
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-#lastWordOverlay h1 {
-  font-size: 36px;
-  text-shadow: 0 0 15px #ff6bff;
 }
 </style>
 </head>
 
 <body>
 
-<!-- ================= МЕНЮ ================= -->
 <div id="menu" class="screen active">
-  <div class="neon-title">Elians</div>
-
+  <h2>Elians</h2>
   <button class="btn" onclick="createRoom()">Создать комнату</button>
-
-  <div>
-    <input id="joinCode" class="hint-input" placeholder="Введите код комнаты">
-    <button class="btn" onclick="joinRoom()">Войти</button>
-  </div>
-
+  <input id="joinCode" placeholder="Код комнаты">
+  <button class="btn" onclick="joinRoom()">Войти</button>
   <button class="btn" onclick="getOnline()">Список онлайн</button>
 </div>
 
-<!-- ================= СПИСОК ОНЛАЙН ================= -->
 <div id="online" class="screen">
-  <div class="neon-title">Онлайн игроки</div>
+  <h3>Онлайн игроки</h3>
   <div id="onlineList"></div>
   <button class="btn" onclick="show('menu')">Назад</button>
 </div>
 
-<!-- ================= КОМНАТА ================= -->
 <div id="room" class="screen">
-  <div class="neon-title">Комната: <span id="roomId"></span></div>
-
-  <div class="card">
-    <div id="players"></div>
-  </div>
-
+  <h3>Комната: <span id="roomId"></span></h3>
+  <div id="players"></div>
   <button class="btn" onclick="startRound()">Начать раунд</button>
-  <button class="btn" onclick="show('menu')">Выйти</button>
 </div>
 
-<!-- ================= ИГРА ================= -->
 <div id="game" class="screen">
-
-  <div class="game-header">
-    <div>Команда A: <span id="scoreA">0</span></div>
-    <div class="timer">⏱ <span id="time">60</span></div>
-    <div>Команда B: <span id="scoreB">0</span></div>
-  </div>
-
+  <h3>Игра идёт</h3>
+  <div>⏱ <span id="time">60</span> сек</div>
   <div class="game-grid">
     <div class="player" id="p1">Игрок 1 — A</div>
     <div class="player" id="p2">Игрок 2 — A</div>
@@ -161,49 +85,34 @@ body {
     <div class="player" id="p4">Игрок 4 — B</div>
   </div>
 
-  <div class="card">
-    <div>🎯 Слово: <b id="currentWord">_____</b></div>
+  <input id="hint" placeholder="Подсказка" oninput="sendHint()"><br>
+  <input id="guess" placeholder="Угадать" onkeypress="sendGuess(event)"><br>
 
-    <input id="hint" class="hint-input"
-      placeholder="Подсказка (в реальном времени)"
-      oninput="sendHint()">
-
-    <input id="guess" class="guess-input"
-      placeholder="Общий чат угадывания"
-      onkeypress="sendGuess(event)">
-
-    <div>
-      <button class="btn" onclick="skipWord()">СКИП (-1)</button>
-      <button class="btn" onclick="correctWord()">УГАДАЛИ (+1)</button>
-      <button class="btn" onclick="lastWord()">ПОСЛЕДНЕЕ СЛОВО</button>
-    </div>
-  </div>
-
+  <button class="btn" onclick="skipWord()">СКИП</button>
+  <button class="btn" onclick="correctWord()">УГАДАЛИ</button>
+  <button class="btn" onclick="lastWord()">ПОСЛЕДНЕЕ СЛОВО</button>
 </div>
 
-<!-- ================= ОВЕРЛЕЙ ПОСЛЕДНЕГО СЛОВА ================= -->
-<div id="lastWordOverlay">
+<div id="lastWordOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; color:white; align-items:center; justify-content:center;">
   <h1>ПОСЛЕДНЕЕ СЛОВО!<br>Пробуйте угадать!</h1>
 </div>
 
 <script>
-const ws = new WebSocket(
-  location.protocol === "https:" 
-    ? "wss://" + location.host 
-    : "ws://" + location.host
-);
+const WS_URL = location.protocol === "https:"
+  ? `wss://${location.host}`
+  : `ws://${location.host}`;
+
+const ws = new WebSocket(WS_URL);
 
 const userId = "u" + Math.random().toString(36).substring(2, 9);
 const username = "Игрок_" + userId;
 let currentRoom = null;
 
-// ===== УТИЛИТЫ =====
 function show(id){
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 }
 
-// ===== РЕГИСТРАЦИЯ =====
 ws.onopen = () => {
   ws.send(JSON.stringify({
     type: "REGISTER",
@@ -212,12 +121,10 @@ ws.onopen = () => {
   }));
 };
 
-// ===== СОБЫТИЯ ОТ СЕРВЕРА =====
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
 
   switch (data.type) {
-
     case "ROOM_CREATED":
       currentRoom = data.roomId;
       document.getElementById("roomId").innerText = currentRoom;
@@ -243,7 +150,6 @@ ws.onmessage = (event) => {
 
         const btn = document.createElement("button");
         btn.innerText = "Пригласить";
-        btn.className = "btn";
         btn.onclick = () => invite(u.userId);
 
         d.appendChild(btn);
@@ -260,7 +166,6 @@ ws.onmessage = (event) => {
       break;
 
     case "ROUND_START":
-      document.getElementById("currentWord").innerText = data.word;
       document.getElementById("time").innerText = data.time;
       show("game");
       break;
@@ -269,17 +174,8 @@ ws.onmessage = (event) => {
       document.getElementById("time").innerText = data.time;
       break;
 
-    case "HINT":
-      console.log("Подсказка:", data.text);
-      break;
-
-    case "GUESS":
-      console.log("Угадали:", data.text);
-      break;
-
     case "SCORE_UPDATE":
-      document.getElementById("scoreA").innerText = data.scores.A;
-      document.getElementById("scoreB").innerText = data.scores.B;
+      console.log("Очки:", data.scores);
       break;
 
     case "LAST_WORD":
@@ -288,15 +184,12 @@ ws.onmessage = (event) => {
   }
 };
 
-// ===== ДЕЙСТВИЯ =====
 function createRoom(){
   ws.send(JSON.stringify({ type: "CREATE_ROOM" }));
 }
 
 function joinRoom(){
   const code = document.getElementById("joinCode").value.trim();
-  if (!code) return alert("Введите код комнаты");
-  currentRoom = code;
   ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code }));
 }
 
@@ -347,4 +240,4 @@ function lastWord(){
 </script>
 
 </body>
-    </html>
+</html>
