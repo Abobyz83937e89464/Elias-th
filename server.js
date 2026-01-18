@@ -22,26 +22,51 @@ const wss = new WebSocketServer({ server });
 // Раздаём Mini App
 app.use(express.static(path.join(__dirname, "public")));
 
+// Health check (ВАЖНО для Render + WS)
+app.get("/health", (req, res) => {
+  res.send("OK");
+});
+
 // ====== TELEGRAM BOT ======
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// ====== ХРАНИЛИЩЕ (в памяти) ======
-const rooms = new Map(); 
-// roomId -> {
-//   host: ws,
-//   players: [ws],
-//   roundActive: false,
-//   word: null,
-//   timeLeft: 60,
-//   timer: null,
-//   turn: 0,
-//   teams: { A: [], B: [] },
-//   roles: { explainer: ws, guesser: ws },
-//   scores: { A: 0, B: 0 }
-// }
+// Кнопка Mini App
+const MINI_APP_URL = process.env.RENDER_EXTERNAL_URL
+  ? `https://${process.env.RENDER_EXTERNAL_URL}`
+  : `http://localhost:${PORT}`;
 
-const users = new Map(); 
-// ws -> { userId, username, roomId, tgId }
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  const text = `Приветствую! 👋\n\n` +
+    `Вы попали в бота *Elians*, созданного Morpheus (Nikita).\n\n` +
+    `👉 Нажмите кнопку *Elians* ниже, чтобы открыть приложение и начать игру.\n\n` +
+    `В приложении вы сможете:\n` +
+    `• выбрать режим\n` +
+    `• прочитать правила\n` +
+    `• создать комнату\n` +
+    `• пригласить друзей\n` +
+    `• играть в Alias в реальном времени.\n\n` +
+    `Удачной игры! ✨`;
+
+  await bot.sendMessage(chatId, text, {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "🎮 Elians",
+            web_app: { url: MINI_APP_URL }
+          }
+        ]
+      ]
+    }
+  });
+});
+
+// ====== ХРАНИЛИЩЕ (в памяти) ======
+const rooms = new Map(); // roomId -> { players, host, roundActive, word, timeLeft, teams, roles, scores }
+const users = new Map(); // ws -> { userId, username, roomId, tgId }
 
 // ====== ВСПОМОГАТЕЛЬНЫЕ ======
 
@@ -95,13 +120,6 @@ function startRoundTimer(roomId) {
   }, 1000);
 }
 
-function pickRoles(room) {
-  const team = room.turn % 2 === 0 ? room.teams.A : room.teams.B;
-  room.roles.explainer = team[0];
-  room.roles.guesser = team[1];
-  room.turn++;
-}
-
 // ====== WEBSOCKET ======
 wss.on("connection", (ws) => {
 
@@ -110,7 +128,6 @@ wss.on("connection", (ws) => {
 
     switch (msg.type) {
 
-      // ===== РЕГИСТРАЦИЯ =====
       case "REGISTER":
         users.set(ws, {
           userId: msg.userId,
@@ -122,7 +139,6 @@ wss.on("connection", (ws) => {
         ws.send(JSON.stringify({ type: "REGISTERED" }));
         break;
 
-      // ===== СПИСОК ОНЛАЙН-ДРУЗЕЙ =====
       case "GET_ONLINE_USERS":
         const online = [];
         for (let u of users.values()) {
@@ -135,7 +151,6 @@ wss.on("connection", (ws) => {
         }));
         break;
 
-      // ===== СОЗДАТЬ КОМНАТУ =====
       case "CREATE_ROOM": {
         const roomId = shortRoomId();
 
@@ -146,7 +161,6 @@ wss.on("connection", (ws) => {
           word: null,
           timeLeft: 60,
           timer: null,
-          turn: 0,
           teams: { A: [], B: [] },
           roles: { explainer: null, guesser: null },
           scores: { A: 0, B: 0 }
@@ -161,7 +175,6 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== ПРИГЛАСИТЬ ЧЕРЕЗ БОТА =====
       case "INVITE": {
         const { roomId, targetUserId } = msg;
         const room = rooms.get(roomId);
@@ -187,26 +200,22 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // Отправляем приглашение в Mini App
         targetWs.send(JSON.stringify({
           type: "INVITE",
           roomId,
           from: users.get(ws).username
         }));
 
-        // Отправляем уведомление в Telegram, если есть tgId
         if (targetUser.tgId) {
           await bot.sendMessage(
             targetUser.tgId,
-            `📨 Вас пригласили в комнату *${roomId}*\n\nОткройте приложение Elians и нажмите «Войти в комнату».`,
+            `📨 Вас пригласили в комнату *${roomId}*\n\nОткройте приложение Elians и войдите в комнату.`,
             { parse_mode: "Markdown" }
           );
         }
-
         break;
       }
 
-      // ===== ПРИНЯТЬ ПРИГЛАШЕНИЕ =====
       case "JOIN_ROOM": {
         const { roomId } = msg;
         const room = rooms.get(roomId);
@@ -216,9 +225,7 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        if (room.players.includes(ws)) {
-          return;
-        }
+        if (room.players.includes(ws)) return;
 
         room.players.push(ws);
         users.get(ws).roomId = roomId;
@@ -237,31 +244,25 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== СТАРТ РАУНДА =====
       case "START_ROUND": {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
-
         if (!room) return;
 
         room.roundActive = true;
-        room.word = msg.word || "САМОЛЁТ"; // потом заменим на список слов
+        room.word = "САМОЛЁТ"; // потом заменим на список слов
 
         assignTeams(room);
-        pickRoles(room);
         startRoundTimer(user.roomId);
 
         broadcast(user.roomId, {
           type: "ROUND_START",
           word: room.word,
-          time: room.timeLeft,
-          explainer: users.get(room.roles.explainer).username,
-          guesser: users.get(room.roles.guesser).username
+          time: room.timeLeft
         });
         break;
       }
 
-      // ===== ПОДСКАЗКА =====
       case "HINT": {
         const user = users.get(ws);
         broadcast(user.roomId, {
@@ -272,7 +273,6 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== УГАДЫВАНИЕ =====
       case "GUESS": {
         const user = users.get(ws);
         broadcast(user.roomId, {
@@ -283,11 +283,9 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== СКИП =====
       case "SKIP": {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
-
         room.scores.A -= 1;
 
         broadcast(user.roomId, {
@@ -297,11 +295,9 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== УГАДАЛИ =====
       case "CORRECT": {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
-
         room.scores.A += 1;
 
         broadcast(user.roomId, {
@@ -311,7 +307,6 @@ wss.on("connection", (ws) => {
         break;
       }
 
-      // ===== ПОСЛЕДНЕЕ СЛОВО =====
       case "LAST_WORD": {
         const user = users.get(ws);
         broadcast(user.roomId, { type: "LAST_WORD" });
