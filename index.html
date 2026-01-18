@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elians</title>
+
+<style>
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #0b0f2a, #050716);
+  color: white;
+  font-family: 'Montserrat', sans-serif;
+  text-align: center;
+}
+
+.screen { display: none; padding: 20px; }
+.active { display: block; }
+
+.neon-title {
+  font-size: 28px;
+  font-weight: 800;
+  text-shadow: 0 0 10px #7c8aff;
+  margin-bottom: 15px;
+}
+
+.btn {
+  background: linear-gradient(135deg, #6a7cff, #a16bff);
+  border: none;
+  border-radius: 20px;
+  padding: 10px 16px;
+  color: white;
+  font-weight: 600;
+  margin: 6px;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(106,124,255,0.7);
+}
+
+.card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(124,138,255,0.3);
+  border-radius: 16px;
+  padding: 14px;
+  margin: 10px auto;
+  max-width: 420px;
+}
+
+/* Лобби */
+#players div {
+  padding: 6px;
+  background: rgba(255,255,255,0.06);
+  margin: 4px;
+  border-radius: 10px;
+}
+
+/* Игра */
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  max-width: 700px;
+  margin: 0 auto 10px;
+}
+
+.timer {
+  font-size: 20px;
+  text-shadow: 0 0 8px #ff6bff;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 650px;
+  margin: 10px auto;
+}
+
+.player {
+  background: rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 10px;
+  box-shadow: 0 0 8px rgba(124,138,255,0.4);
+}
+
+/* Поля ввода */
+.hint-input, .guess-input {
+  width: 90%;
+  padding: 10px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: white;
+  margin: 6px 0;
+}
+
+/* Последнее слово */
+#lastWordOverlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#lastWordOverlay h1 {
+  font-size: 36px;
+  text-shadow: 0 0 15px #ff6bff;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= МЕНЮ ================= -->
+<div id="menu" class="screen active">
+  <div class="neon-title">Elians</div>
+
+  <button class="btn" onclick="createRoom()">Создать комнату</button>
+
+  <div>
+    <input id="joinCode" class="hint-input" placeholder="Введите код комнаты">
+    <button class="btn" onclick="joinRoom()">Войти</button>
+  </div>
+
+  <button class="btn" onclick="getOnline()">Список онлайн</button>
+</div>
+
+<!-- ================= СПИСОК ОНЛАЙН ================= -->
+<div id="online" class="screen">
+  <div class="neon-title">Онлайн игроки</div>
+  <div id="onlineList"></div>
+  <button class="btn" onclick="show('menu')">Назад</button>
+</div>
+
+<!-- ================= КОМНАТА ================= -->
+<div id="room" class="screen">
+  <div class="neon-title">Комната: <span id="roomId"></span></div>
+
+  <div class="card">
+    <div id="players"></div>
+  </div>
+
+  <button class="btn" onclick="startRound()">Начать раунд</button>
+  <button class="btn" onclick="show('menu')">Выйти</button>
+</div>
+
+<!-- ================= ИГРА ================= -->
+<div id="game" class="screen">
+
+  <div class="game-header">
+    <div>Команда A: <span id="scoreA">0</span></div>
+    <div class="timer">⏱ <span id="time">60</span></div>
+    <div>Команда B: <span id="scoreB">0</span></div>
+  </div>
+
+  <div class="game-grid">
+    <div class="player" id="p1">Игрок 1 — A</div>
+    <div class="player" id="p2">Игрок 2 — A</div>
+    <div class="player" id="p3">Игрок 3 — B</div>
+    <div class="player" id="p4">Игрок 4 — B</div>
+  </div>
+
+  <div class="card">
+    <div>🎯 Слово: <b id="currentWord">_____</b></div>
+
+    <input id="hint" class="hint-input"
+      placeholder="Подсказка (в реальном времени)"
+      oninput="sendHint()">
+
+    <input id="guess" class="guess-input"
+      placeholder="Общий чат угадывания"
+      onkeypress="sendGuess(event)">
+
+    <div>
+      <button class="btn" onclick="skipWord()">СКИП (-1)</button>
+      <button class="btn" onclick="correctWord()">УГАДАЛИ (+1)</button>
+      <button class="btn" onclick="lastWord()">ПОСЛЕДНЕЕ СЛОВО</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ================= ОВЕРЛЕЙ ПОСЛЕДНЕГО СЛОВА ================= -->
+<div id="lastWordOverlay">
+  <h1>ПОСЛЕДНЕЕ СЛОВО!<br>Пробуйте угадать!</h1>
+</div>
+
+<script>
+const ws = new WebSocket(
+  location.protocol === "https:" 
+    ? "wss://" + location.host 
+    : "ws://" + location.host
+);
+
+const userId = "u" + Math.random().toString(36).substring(2, 9);
+const username = "Игрок_" + userId;
+let currentRoom = null;
+
+// ===== УТИЛИТЫ =====
+function show(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+// ===== РЕГИСТРАЦИЯ =====
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    type: "REGISTER",
+    userId,
+    username
+  }));
+};
+
+// ===== СОБЫТИЯ ОТ СЕРВЕРА =====
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  switch (data.type) {
+
+    case "ROOM_CREATED":
+      currentRoom = data.roomId;
+      document.getElementById("roomId").innerText = currentRoom;
+      show("room");
+      break;
+
+    case "PLAYERS_UPDATE":
+      const list = document.getElementById("players");
+      list.innerHTML = "";
+      data.players.forEach(p => {
+        const d = document.createElement("div");
+        d.innerText = p;
+        list.appendChild(d);
+      });
+      break;
+
+    case "ONLINE_USERS":
+      const online = document.getElementById("onlineList");
+      online.innerHTML = "";
+      data.users.forEach(u => {
+        const d = document.createElement("div");
+        d.innerText = u.username;
+
+        const btn = document.createElement("button");
+        btn.innerText = "Пригласить";
+        btn.className = "btn";
+        btn.onclick = () => invite(u.userId);
+
+        d.appendChild(btn);
+        online.appendChild(d);
+      });
+      show("online");
+      break;
+
+    case "INVITE":
+      alert(`Приглашение от ${data.from} в комнату ${data.roomId}`);
+      currentRoom = data.roomId;
+      ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: data.roomId }));
+      show("room");
+      break;
+
+    case "ROUND_START":
+      document.getElementById("currentWord").innerText = data.word;
+      document.getElementById("time").innerText = data.time;
+      show("game");
+      break;
+
+    case "TIMER":
+      document.getElementById("time").innerText = data.time;
+      break;
+
+    case "HINT":
+      console.log("Подсказка:", data.text);
+      break;
+
+    case "GUESS":
+      console.log("Угадали:", data.text);
+      break;
+
+    case "SCORE_UPDATE":
+      document.getElementById("scoreA").innerText = data.scores.A;
+      document.getElementById("scoreB").innerText = data.scores.B;
+      break;
+
+    case "LAST_WORD":
+      document.getElementById("lastWordOverlay").style.display = "flex";
+      break;
+  }
+};
+
+// ===== ДЕЙСТВИЯ =====
+function createRoom(){
+  ws.send(JSON.stringify({ type: "CREATE_ROOM" }));
+}
+
+function joinRoom(){
+  const code = document.getElementById("joinCode").value.trim();
+  if (!code) return alert("Введите код комнаты");
+  currentRoom = code;
+  ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code }));
+}
+
+function getOnline(){
+  ws.send(JSON.stringify({ type: "GET_ONLINE_USERS" }));
+}
+
+function invite(targetUserId){
+  ws.send(JSON.stringify({
+    type: "INVITE",
+    roomId: currentRoom,
+    targetUserId
+  }));
+}
+
+function startRound(){
+  ws.send(JSON.stringify({ type: "START_ROUND" }));
+}
+
+function sendHint(){
+  ws.send(JSON.stringify({
+    type: "HINT",
+    text: document.getElementById("hint").value
+  }));
+}
+
+function sendGuess(e){
+  if (e.key === "Enter"){
+    ws.send(JSON.stringify({
+      type: "GUESS",
+      text: document.getElementById("guess").value
+    }));
+    document.getElementById("guess").value = "";
+  }
+}
+
+function skipWord(){
+  ws.send(JSON.stringify({ type: "SKIP" }));
+}
+
+function correctWord(){
+  ws.send(JSON.stringify({ type: "CORRECT" }));
+}
+
+function lastWord(){
+  ws.send(JSON.stringify({ type: "LAST_WORD" }));
+}
+</script>
+
+</body>
+    </html>
