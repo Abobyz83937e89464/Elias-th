@@ -3,7 +3,6 @@ import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import TelegramBot from 'node-telegram-bot-api';
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,53 +25,85 @@ app.use(express.static(path.join(__dirname, "public")));
 // ====== TELEGRAM BOT ======
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Кнопка Mini App
-const MINI_APP_URL = process.env.RENDER_EXTERNAL_URL
-  ? `https://${process.env.RENDER_EXTERNAL_URL}`
-  : "http://localhost:3000";
-
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  const text = `Приветствую! 👋\n\n` +
-    `Вы попали в бота *Elians*, созданного Morpheus (Nikita).\n\n` +
-    `👉 Нажмите кнопку *Elians* ниже, чтобы открыть приложение и начать игру.\n\n` +
-    `В приложении вы сможете:\n` +
-    `• выбрать режим\n` +
-    `• прочитать правила\n` +
-    `• создать комнату\n` +
-    `• пригласить друзей\n` +
-    `• играть в Alias в реальном времени.\n\n` +
-    `Удачной игры! ✨`;
-
-  await bot.sendMessage(chatId, text, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: "🎮 Elians",
-            web_app: { url: MINI_APP_URL }
-          }
-        ]
-      ]
-    }
-  });
-});
-
 // ====== ХРАНИЛИЩЕ (в памяти) ======
-const rooms = new Map(); // roomId -> { players, host, roundActive, word, turn, scores }
-const users = new Map(); // ws -> { userId, username, roomId }
+const rooms = new Map(); 
+// roomId -> {
+//   host: ws,
+//   players: [ws],
+//   roundActive: false,
+//   word: null,
+//   timeLeft: 60,
+//   timer: null,
+//   turn: 0,
+//   teams: { A: [], B: [] },
+//   roles: { explainer: ws, guesser: ws },
+//   scores: { A: 0, B: 0 }
+// }
+
+const users = new Map(); 
+// ws -> { userId, username, roomId, tgId }
 
 // ====== ВСПОМОГАТЕЛЬНЫЕ ======
+
+function shortRoomId() {
+  return Math.random().toString(36).substring(2, 7).toUpperCase();
+}
+
 function broadcast(roomId, data) {
-  rooms.get(roomId)?.players.forEach(ws => {
-    if (ws.readyState === 1) ws.send(JSON.stringify(data));
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  room.players.forEach(ws => {
+    if (ws.readyState === 1) {
+      ws.send(JSON.stringify(data));
+    }
   });
 }
 
+function assignTeams(room) {
+  room.teams.A = [];
+  room.teams.B = [];
+
+  room.players.forEach((ws, i) => {
+    if (i % 2 === 0) room.teams.A.push(ws);
+    else room.teams.B.push(ws);
+  });
+}
+
+function startRoundTimer(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  room.timeLeft = 60;
+
+  room.timer = setInterval(() => {
+    room.timeLeft--;
+
+    broadcast(roomId, {
+      type: "TIMER",
+      time: room.timeLeft
+    });
+
+    if (room.timeLeft <= 0) {
+      clearInterval(room.timer);
+      room.roundActive = false;
+
+      broadcast(roomId, {
+        type: "LAST_WORD"
+      });
+    }
+  }, 1000);
+}
+
+function pickRoles(room) {
+  const team = room.turn % 2 === 0 ? room.teams.A : room.teams.B;
+  room.roles.explainer = team[0];
+  room.roles.guesser = team[1];
+  room.turn++;
+}
+
 // ====== WEBSOCKET ======
-wss.on("connection", (ws, req) => {
+wss.on("connection", (ws) => {
 
   ws.on("message", async (raw) => {
     const msg = JSON.parse(raw);
@@ -84,20 +115,40 @@ wss.on("connection", (ws, req) => {
         users.set(ws, {
           userId: msg.userId,
           username: msg.username,
+          tgId: msg.tgId || null,
           roomId: null
         });
+
         ws.send(JSON.stringify({ type: "REGISTERED" }));
+        break;
+
+      // ===== СПИСОК ОНЛАЙН-ДРУЗЕЙ =====
+      case "GET_ONLINE_USERS":
+        const online = [];
+        for (let u of users.values()) {
+          online.push({ userId: u.userId, username: u.username });
+        }
+
+        ws.send(JSON.stringify({
+          type: "ONLINE_USERS",
+          users: online
+        }));
         break;
 
       // ===== СОЗДАТЬ КОМНАТУ =====
       case "CREATE_ROOM": {
-        const roomId = uuidv4();
+        const roomId = shortRoomId();
+
         rooms.set(roomId, {
           host: ws,
           players: [ws],
           roundActive: false,
           word: null,
+          timeLeft: 60,
+          timer: null,
           turn: 0,
+          teams: { A: [], B: [] },
+          roles: { explainer: null, guesser: null },
           scores: { A: 0, B: 0 }
         });
 
@@ -110,14 +161,25 @@ wss.on("connection", (ws, req) => {
         break;
       }
 
-      // ===== ПРИГЛАСИТЬ В КОМНАТУ =====
+      // ===== ПРИГЛАСИТЬ ЧЕРЕЗ БОТА =====
       case "INVITE": {
         const { roomId, targetUserId } = msg;
+        const room = rooms.get(roomId);
 
-        // Найдём WS целевого пользователя
+        if (!room) {
+          ws.send(JSON.stringify({ type: "ERROR", text: "Комната не найдена" }));
+          return;
+        }
+
         let targetWs = null;
+        let targetUser = null;
+
         for (let [sock, u] of users.entries()) {
-          if (u.userId === targetUserId) targetWs = sock;
+          if (u.userId === targetUserId) {
+            targetWs = sock;
+            targetUser = u;
+            break;
+          }
         }
 
         if (!targetWs) {
@@ -125,11 +187,22 @@ wss.on("connection", (ws, req) => {
           return;
         }
 
+        // Отправляем приглашение в Mini App
         targetWs.send(JSON.stringify({
           type: "INVITE",
           roomId,
           from: users.get(ws).username
         }));
+
+        // Отправляем уведомление в Telegram, если есть tgId
+        if (targetUser.tgId) {
+          await bot.sendMessage(
+            targetUser.tgId,
+            `📨 Вас пригласили в комнату *${roomId}*\n\nОткройте приложение Elians и нажмите «Войти в комнату».`,
+            { parse_mode: "Markdown" }
+          );
+        }
+
         break;
       }
 
@@ -137,19 +210,30 @@ wss.on("connection", (ws, req) => {
       case "JOIN_ROOM": {
         const { roomId } = msg;
         const room = rooms.get(roomId);
+
         if (!room) {
           ws.send(JSON.stringify({ type: "ERROR", text: "Комната не найдена" }));
+          return;
+        }
+
+        if (room.players.includes(ws)) {
           return;
         }
 
         room.players.push(ws);
         users.get(ws).roomId = roomId;
 
-        // Обновляем список игроков всем
+        assignTeams(room);
+
         broadcast(roomId, {
           type: "PLAYERS_UPDATE",
-          players: room.players.map(p => users.get(p).username)
+          players: room.players.map(p => users.get(p).username),
+          teams: {
+            A: room.teams.A.map(p => users.get(p).username),
+            B: room.teams.B.map(p => users.get(p).username)
+          }
         });
+
         break;
       }
 
@@ -158,18 +242,26 @@ wss.on("connection", (ws, req) => {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
 
+        if (!room) return;
+
         room.roundActive = true;
-        room.word = "САМОЛЁТ"; // временно — потом заменим на список слов
+        room.word = msg.word || "САМОЛЁТ"; // потом заменим на список слов
+
+        assignTeams(room);
+        pickRoles(room);
+        startRoundTimer(user.roomId);
 
         broadcast(user.roomId, {
           type: "ROUND_START",
           word: room.word,
-          time: 60
+          time: room.timeLeft,
+          explainer: users.get(room.roles.explainer).username,
+          guesser: users.get(room.roles.guesser).username
         });
         break;
       }
 
-      // ===== ПОДСКАЗКА В РЕАЛЬНОМ ВРЕМЕНИ =====
+      // ===== ПОДСКАЗКА =====
       case "HINT": {
         const user = users.get(ws);
         broadcast(user.roomId, {
@@ -195,6 +287,7 @@ wss.on("connection", (ws, req) => {
       case "SKIP": {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
+
         room.scores.A -= 1;
 
         broadcast(user.roomId, {
@@ -208,6 +301,7 @@ wss.on("connection", (ws, req) => {
       case "CORRECT": {
         const user = users.get(ws);
         const room = rooms.get(user.roomId);
+
         room.scores.A += 1;
 
         broadcast(user.roomId, {
@@ -220,9 +314,7 @@ wss.on("connection", (ws, req) => {
       // ===== ПОСЛЕДНЕЕ СЛОВО =====
       case "LAST_WORD": {
         const user = users.get(ws);
-        broadcast(user.roomId, {
-          type: "LAST_WORD"
-        });
+        broadcast(user.roomId, { type: "LAST_WORD" });
         break;
       }
     }
@@ -237,10 +329,19 @@ wss.on("connection", (ws, req) => {
       const room = rooms.get(roomId);
       room.players = room.players.filter(p => p !== ws);
 
-      broadcast(roomId, {
-        type: "PLAYERS_UPDATE",
-        players: room.players.map(p => users.get(p)?.username)
-      });
+      if (room.players.length === 0) {
+        rooms.delete(roomId);
+      } else {
+        assignTeams(room);
+        broadcast(roomId, {
+          type: "PLAYERS_UPDATE",
+          players: room.players.map(p => users.get(p)?.username),
+          teams: {
+            A: room.teams.A.map(p => users.get(p).username),
+            B: room.teams.B.map(p => users.get(p).username)
+          }
+        });
+      }
     }
 
     users.delete(ws);
