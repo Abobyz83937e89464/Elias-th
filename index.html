@@ -6,335 +6,471 @@
     <title>Elias Arena Ultimate</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --neon: #00f3ff; --pink: #bc13fe; --bg: #050716; --dark-overlay: rgba(0,0,0,0.8); }
-        
-        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; }
-        
-        /* Утилиты */
-        .hidden { display: none !important; }
-        .fade-in { animation: fadeIn 0.3s ease forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* --- ГЛАВНОЕ МЕНЮ --- */
-        #menu-screen {
-            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
-            background: radial-gradient(circle at center, #1a1a2e 0%, var(--bg) 100%);
+        :root {
+            --neon: #00f3ff;
+            --pink: #bc13fe;
+            --bg: #050716;
+            --card-bg: rgba(255, 255, 255, 0.07);
+            --modal-bg: #101223;
         }
-        h1 { font-size: 3.5rem; text-shadow: 0 0 25px var(--neon); margin-bottom: 50px; letter-spacing: 3px; }
-        
-        .menu-btn {
-            background: transparent; border: 1px solid rgba(255,255,255,0.2); 
-            color: white; padding: 18px 0; width: 70%; margin: 8px 0; 
-            border-radius: 15px; font-size: 1.1rem; font-weight: 600; cursor: pointer;
-            transition: 0.2s; position: relative; overflow: hidden;
-        }
-        .menu-btn:active { transform: scale(0.98); }
-        .btn-neon { background: var(--neon); color: black; border: none; box-shadow: 0 0 20px rgba(0,243,255,0.3); }
 
-        /* --- МОДАЛЬНЫЕ ОКНА --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: white;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- АНИМАЦИИ --- */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0% { box-shadow: 0 0 5px var(--neon); } 50% { box-shadow: 0 0 20px var(--neon); } 100% { box-shadow: 0 0 5px var(--neon); } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+        /* --- ЭКРАНЫ --- */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+        .screen.active { display: flex; }
+
+        /* --- МЕНЮ --- */
+        .logo {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: -2px;
+            background: linear-gradient(to bottom, #fff, var(--neon));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 40px;
+            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
+        }
+
+        .menu-btns { width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 15px; }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--card-bg);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn:active { transform: scale(0.96); background: rgba(255,255,255,0.15); }
+        .btn-main {
+            background: var(--neon);
+            color: black;
+            border: none;
+            box-shadow: 0 10px 20px rgba(0, 243, 255, 0.2);
+        }
+
+        /* --- МОДАЛКИ --- */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--dark-overlay); z-index: 50;
-            display: flex; align-items: flex-end; /* Выезжает снизу */
-            opacity: 0; pointer-events: none; transition: 0.3s;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
         }
-        .modal-overlay.open { opacity: 1; pointer-events: all; }
-        
+        .modal-overlay.open { display: flex; }
         .modal-card {
-            background: #15151f; width: 100%; border-top-left-radius: 30px; border-top-right-radius: 30px;
-            padding: 30px 20px 50px 20px; text-align: center;
-            transform: translateY(100%); transition: 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-            border-top: 1px solid #333;
+            width: 100%;
+            background: var(--modal-bg);
+            border-radius: 35px 35px 0 0;
+            padding: 40px 25px;
+            animation: slideUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
-        .modal-overlay.open .modal-card { transform: translateY(0); }
+        .modal-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 25px; text-align: center; }
 
-        .modal-title { font-size: 1.5rem; margin-bottom: 20px; font-weight: bold; }
-        
-        /* Компактный инпут */
-        .input-code {
-            background: #0a0a10; border: 1px solid #444; border-radius: 12px;
-            padding: 12px; width: 60%; color: white; text-align: center; 
-            font-size: 1.2rem; letter-spacing: 2px; outline: none; margin-bottom: 15px;
+        /* Компактная строка ввода кода */
+        .code-input-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
+        .compact-input {
+            width: 160px;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 15px;
+            color: var(--neon);
+            font-size: 1.8rem;
+            font-weight: 900;
+            text-align: center;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            outline: none;
         }
-        .input-code:focus { border-color: var(--neon); }
-
-        /* Кнопки выбора режима */
-        .mode-select-btn {
-            background: #222; padding: 15px; margin: 5px 0; border-radius: 15px; 
-            display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;
-        }
-        .mode-select-btn:hover { background: #2a2a35; }
+        .compact-input:focus { border-color: var(--neon); }
 
         /* --- ЛОББИ --- */
-        #lobby-screen { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; }
-        .room-code { font-size: 3rem; font-weight: 900; color: var(--neon); animation: pulseText 2s infinite; margin: 10px 0; }
-        @keyframes pulseText { 0%{opacity:0.8} 50%{opacity:1; text-shadow:0 0 20px var(--neon)} 100%{opacity:0.8} }
+        .room-badge { background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; color: #888; margin-bottom: 10px; }
+        .room-id-text { font-size: 4rem; font-weight: 900; color: #fff; text-shadow: 0 0 20px var(--neon); margin: 0 0 30px 0; }
         
-        #facts-box {
-            margin-top: 40px; background: rgba(255,255,255,0.05); padding: 15px; 
-            border-radius: 15px; width: 80%; font-size: 0.9rem; color: #aaa; min-height: 60px;
-            display: flex; align-items: center; justify-content: center; text-align: center;
+        #player-list-container {
+            width: 100%;
+            background: var(--card-bg);
+            border-radius: 25px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .player-row { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; }
+        .player-row:last-child { border: none; }
+        .dot { width: 8px; height: 8px; background: var(--neon); border-radius: 50%; }
+
+        .facts-slider {
+            margin-top: auto;
+            padding: 20px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #666;
+            min-height: 80px;
+            transition: 0.3s;
         }
 
-        /* --- ИГРА --- */
-        .arena { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 110px 1fr 120px 70px; height: 100vh; padding: 10px; gap: 10px; box-sizing: border-box; }
-        
-        .player-card { background: rgba(255,255,255,0.05); border: 2px solid #222; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.4s; }
-        .user-icon { width: 30px; height: 30px; fill: #555; margin-bottom: 5px; }
-        .active-exp { border-color: var(--pink); box-shadow: 0 0 15px var(--pink); transform: scale(1.03); }
-        .active-exp .user-icon { fill: var(--pink); }
-        .active-guess { border-color: var(--neon); box-shadow: 0 0 15px var(--neon); transform: scale(1.03); }
-        .active-guess .user-icon { fill: var(--neon); }
+        /* --- ИГРОВОЙ ЭКРАН (АРЕНА) --- */
+        .arena {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 100px 1fr 120px 80px;
+            height: 100vh;
+            gap: 12px;
+            padding: 15px;
+        }
+        .p-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: 0.3s;
+        }
+        .p-card.active-exp { border: 2px solid var(--pink); box-shadow: 0 0 15px rgba(188, 19, 254, 0.3); }
+        .p-card.active-guess { border: 2px solid var(--neon); box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); }
+        .p-name { font-size: 0.9rem; font-weight: 600; margin-top: 5px; }
 
-        .center-hub { grid-column: span 2; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .word-display { font-size: 2.2rem; font-weight: 900; color: var(--neon); text-transform: uppercase; text-align: center; margin-bottom: 5px; }
-        .sub-hint { font-size: 0.85rem; color: #888; text-align: center; max-width: 90%; line-height: 1.2; }
+        .center-hub {
+            grid-column: span 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .main-word { font-size: 2.8rem; font-weight: 900; color: var(--neon); text-transform: uppercase; line-height: 1; }
+        .explanation-hint { font-size: 0.9rem; color: #888; margin-top: 8px; max-width: 80%; }
         
-        .timer-circle { width: 50px; height: 50px; border-radius: 50%; border: 3px solid var(--pink); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; }
-        .low-time { border-color: #ff4757; color: #ff4757; animation: shake 0.5s infinite; }
-        @keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
+        #timer-display {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--pink);
+            margin-bottom: 10px;
+        }
 
-        #chat { grid-column: span 2; background: rgba(0,0,0,0.3); border-radius: 20px; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; border: 1px solid #1a1a1a; }
-        .msg { background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 12px; animation: msgIn 0.3s forwards; opacity: 0; transform: translateY(10px); }
-        @keyframes msgIn { to { opacity: 1; transform: translateY(0); } }
-        .msg b { color: var(--neon); }
+        #chat-box {
+            grid-column: span 2;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .msg-item { background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 12px; font-size: 0.9rem; animation: fadeIn 0.3s ease; }
+        .msg-item b { color: var(--neon); }
 
-        .controls { grid-column: span 2; display: flex; gap: 10px; }
-        input.game-in { flex: 1; background: #111; border: 1px solid #333; border-radius: 15px; color: white; padding: 12px; outline: none; }
-        input.game-in:focus { border-color: var(--neon); }
-        .btn-skip { background: #ff4757; border: none; border-radius: 15px; padding: 0 20px; color: white; font-weight: bold; }
-        
-        #flash { position: fixed; inset: 0; background: var(--neon); opacity: 0; pointer-events: none; z-index: 100; transition: 0.3s; }
+        .game-controls {
+            grid-column: span 2;
+            display: flex;
+            gap: 10px;
+        }
+        .chat-input {
+            flex: 1;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 15px;
+            color: white;
+            padding: 0 20px;
+            font-size: 1rem;
+            outline: none;
+        }
+        .btn-skip { background: #ff4757; color: white; border: none; border-radius: 15px; padding: 0 20px; font-weight: bold; }
+
+        #flash-effect { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 2000; }
     </style>
 </head>
 <body>
 
-<div id="flash"></div>
+<div id="flash-effect"></div>
 
-<div id="menu-screen">
-    <h1>ELIAS</h1>
-    <div class="menu-btn btn-neon" onclick="openModal('createModal')">СОЗДАТЬ ИГРУ</div>
-    <div class="menu-btn" onclick="openModal('joinModal')">ВОЙТИ ПО КОДУ</div>
-    <div class="menu-btn" onclick="openModal('helpModal')">ПОМОЩЬ</div>
-</div>
-
-<div id="createModal" class="modal-overlay" onclick="closeModal('createModal')">
-    <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-title">Выберите режим</div>
-        <div class="mode-select-btn" onclick="create('online')">
-            <span style="font-size:1.5rem">⚔️</span> <div><b>Баттл</b><br><span style="font-size:0.8rem; color:#888">Классика 2x2</span></div>
-        </div>
-        <div class="mode-select-btn" onclick="create('call')">
-            <span style="font-size:1.5rem">📞</span> <div><b>Созвон</b><br><span style="font-size:0.8rem; color:#888">Для видео-чатов</span></div>
-        </div>
+<div id="menu-screen" class="screen active">
+    <div class="logo fade-in">ELIAS</div>
+    <div class="menu-btns fade-in">
+        <button class="btn btn-main" onclick="openM('modal-create')">СОЗДАТЬ КОМНАТУ</button>
+        <button class="btn" onclick="openM('modal-join')">ПРИСОЕДИНИТЬСЯ</button>
+        <button class="btn" onclick="openM('modal-help')" style="opacity: 0.6; font-size: 0.9rem;">ПРАВИЛА ИГРЫ</button>
     </div>
 </div>
 
-<div id="joinModal" class="modal-overlay" onclick="closeModal('joinModal')">
-    <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-title">Введи код</div>
-        <input id="joinCode" class="input-code" placeholder="A1B2C" maxlength="5">
-        <br>
-        <button class="menu-btn btn-neon" style="width:50%; margin-top:10px" onclick="join()">ВОЙТИ</button>
-    </div>
-</div>
-
-<div id="helpModal" class="modal-overlay" onclick="closeModal('helpModal')">
-    <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-title">Правила игры</div>
-        <div style="text-align: left; padding: 0 10px; color: #ccc; font-size: 0.9rem; line-height: 1.5;">
-            1. Делитесь на 2 команды.<br>
-            2. Ведущий объясняет слово, не называя его.<br>
-            3. Если слово "РАКЕТА", пиши: "Летает в космос, делает бум".<br>
-            4. 1 слово = 1 очко. Скип = -1 очко.<br>
-            5. Играем до 40 очков!<br>
-        </div>
-        <div style="margin-top:20px; color:var(--neon); font-size:2rem">Good Luck!</div>
-    </div>
-</div>
-
-
-<div id="lobby-screen">
-    <h2 style="color:#666; margin:0">КОД КОМНАТЫ</h2>
-    <div id="lCode" class="room-code">-</div>
+<div id="lobby-screen" class="screen">
+    <div class="room-badge fade-in">КОД КОМНАТЫ</div>
+    <h1 id="display-room-id" class="room-id-text fade-in">-</h1>
     
-    <div id="lList" style="margin: 20px 0; font-size: 1.2rem; text-align: center;">Ждем игроков...</div>
+    <div id="player-list-container" class="fade-in">
+        <div id="players-list"></div>
+    </div>
     
-    <button id="startBtn" class="menu-btn btn-neon hidden" onclick="ws.send(JSON.stringify({type:'START_GAME'}))">СТАРТ</button>
-    <p id="waitText" style="color:#444">Только админ может начать</p>
+    <button id="start-game-btn" class="btn btn-main fade-in" style="display:none;" onclick="startGame()">НАЧАТЬ ИГРУ</button>
+    <p id="admin-wait-msg" style="color: #444; font-size: 0.8rem;">Ждем, пока админ запустит матч...</p>
 
-    <div id="facts-box">Загрузка фактов...</div>
+    <div id="facts-area" class="facts-slider">
+        Загрузка полезных советов...
+    </div>
 </div>
 
-
-<div id="game-screen" class="arena hidden">
-    <div id="p0" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
-    <div id="p1" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
+<div id="game-screen" class="arena">
+    <div id="p0" class="p-card"><span class="p-name">Игрок 1</span></div>
+    <div id="p1" class="p-card"><span class="p-name">Игрок 2</span></div>
     
     <div class="center-hub">
-        <div id="timer" class="timer-circle">60</div>
-        <div id="wordBox" class="word-display">...</div>
-        <div id="hintText" class="sub-hint"></div>
-        <div style="margin-top: 10px; font-weight: bold; font-size: 0.9rem">
-            <span style="color: var(--neon)">A: <span id="scoreA">0</span></span> | 
-            <span style="color: var(--pink)">B: <span id="scoreB">0</span></span>
+        <div id="timer-display">60</div>
+        <div id="main-word-box" class="main-word">...</div>
+        <div id="main-word-sub" class="explanation-hint">Ждем начала хода...</div>
+        
+        <div style="margin-top:15px; font-size:0.8rem; font-weight:bold; letter-spacing:1px;">
+            <span style="color: var(--neon)">TEAM A: <span id="scoreA">0</span></span>
+            <span style="margin: 0 10px; color:#333;">|</span>
+            <span style="color: var(--pink)">TEAM B: <span id="scoreB">0</span></span>
         </div>
     </div>
 
-    <div id="p2" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
-    <div id="p3" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
+    <div id="p2" class="p-card"><span class="p-name">Игрок 3</span></div>
+    <div id="p3" class="p-card"><span class="p-name">Игрок 4</span></div>
 
-    <div id="chat"></div>
+    <div id="chat-box"></div>
 
-    <div class="controls">
-        <input id="in" class="game-in" placeholder="Ваш ответ...">
-        <button id="skipBtn" class="btn-skip hidden" onclick="ws.send(JSON.stringify({type:'SKIP_WORD'}))">SKIP</button>
+    <div class="game-controls">
+        <input id="game-input" class="chat-input" placeholder="Ваш ответ или объяснение...">
+        <button id="skip-word-btn" class="btn-skip" style="display:none;" onclick="skipWord()">SKIP</button>
+    </div>
+</div>
+
+<div id="modal-create" class="modal-overlay" onclick="closeM('modal-create')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-title">Выберите режим</div>
+        <button class="btn" style="margin-bottom:10px;" onclick="createRoom('online')">⚔️ ОНЛАЙН БАТТЛ (2x2)</button>
+        <button class="btn" onclick="createRoom('call')">📞 РЕЖИМ СОЗВОНА</button>
+    </div>
+</div>
+
+<div id="modal-join" class="modal-overlay" onclick="closeM('modal-join')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-title">Введите код</div>
+        <div class="code-input-wrapper">
+            <input id="join-code-field" class="compact-input" placeholder="•••••" maxlength="5">
+        </div>
+        <button class="btn btn-main" onclick="joinRoom()">ПРИСОЕДИНИТЬСЯ</button>
+    </div>
+</div>
+
+<div id="modal-help" class="modal-overlay" onclick="closeM('modal-help')">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-title">Как играть?</div>
+        <div style="color: #aaa; line-height: 1.6; font-size: 0.95rem; margin-bottom: 20px;">
+            1. Ведущий видит слово и объясняет его в чате.<br>
+            2. <b>Нельзя</b> использовать однокоренные слова!<br>
+            3. Если слово "РАКЕТА", пиши: <i>"Оно летит в космос"</i>.<br>
+            4. Команда должна написать правильное слово в чат.<br>
+            5. Побеждает тот, кто первым наберет 40 очков.
+        </div>
+        <button class="btn btn-main" onclick="closeM('modal-help')">ВСЁ ПОНЯТНО</button>
     </div>
 </div>
 
 <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
-    
-    const ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
-    let myName = tg.initDataUnsafe.user?.first_name || "Guest";
+    tg.headerColor = "#050716";
 
-    // --- ЛОГИКА ИНТЕРФЕЙСА ---
-    function openModal(id) { document.getElementById(id).classList.add('open'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    // АВТО-АДРЕС СОКЕТА
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`);
     
-    function switchScreen(id) {
-        document.getElementById('menu-screen').style.display = 'none';
-        document.getElementById('lobby-screen').style.display = 'none';
-        document.getElementById('game-screen').classList.add('hidden');
-        document.getElementById('game-screen').style.display = 'none'; // hard reset
+    let myName = tg.initDataUnsafe.user?.first_name || "Игрок " + Math.floor(Math.random()*100);
+    let myRole = "";
 
-        if(id === 'lobby') document.getElementById('lobby-screen').style.display = 'flex';
-        if(id === 'game') {
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.getElementById('game-screen').style.display = 'grid';
-        }
+    // Вспомогательные функции интерфейса
+    function openM(id) { document.getElementById(id).classList.add('open'); }
+    function closeM(id) { document.getElementById(id).classList.remove('open'); }
+    
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('game-screen').style.display = 'none';
+        
+        const target = document.getElementById(id);
+        if(id === 'game-screen') target.style.display = 'grid';
+        else target.classList.add('active');
     }
 
-    // Факты
-    const facts = [
-        "Факт: Слово 'Тетрадь' пришло из греческого.",
-        "Совет: Используйте синонимы!",
-        "Факт: В словаре Даля 200,000 слов.",
-        "Совет: Не молчите, время тикает!",
-        "Факт: Самое длинное слово - из 35 букв."
-    ];
-    setInterval(() => {
-        document.getElementById('facts-box').innerText = facts[Math.floor(Math.random()*facts.length)];
-    }, 4000);
+    // ЛОГИКА СОКЕТОВ
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "REGISTER", username: myName }));
+    };
 
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
 
-    // --- WS ЛОГИКА ---
-    ws.onopen = () => ws.send(JSON.stringify({type:"REGISTER", username: myName}));
+        switch(data.type) {
+            case "ROOM_CREATED":
+            case "JOIN_SUCCESS":
+                document.getElementById('display-room-id').innerText = data.roomId;
+                showScreen('lobby-screen');
+                closeM('modal-create');
+                closeM('modal-join');
+                break;
 
-    ws.onmessage = (e) => {
-        const d = JSON.parse(e.data);
+            case "LOBBY_UPDATE":
+                const list = document.getElementById('players-list');
+                list.innerHTML = data.players.map(p => `
+                    <div class="player-row"><div class="dot"></div> <b>${p}</b></div>
+                `).join('');
+                
+                // Если я первый в списке - я админ
+                if(data.players[0] === myName) {
+                    document.getElementById('start-game-btn').style.display = "flex";
+                    document.getElementById('admin-wait-msg').style.display = "none";
+                }
+                break;
 
-        if(d.type === "ROOM_CREATED") {
-            closeModal('createModal');
-            document.getElementById('lCode').innerText = d.roomId;
-            switchScreen('lobby');
-        }
+            case "ROUND_START":
+                showScreen('game-screen');
+                setupRound(data);
+                break;
 
-        if(d.type === "JOIN_SUCCESS") {
-            closeModal('joinModal');
-            document.getElementById('lCode').innerText = d.roomId;
-            switchScreen('lobby');
-        }
+            case "TIMER_TICK":
+                document.getElementById('timer-display').innerText = data.time;
+                break;
 
-        if(d.type === "LOBBY_UPDATE") {
-            document.getElementById('lList').innerText = d.players.join(" • ");
-            if(d.players[0] === myName) {
-                document.getElementById('startBtn').classList.remove('hidden');
-                document.getElementById('waitText').classList.add('hidden');
-            }
-        }
+            case "NEW_WORD":
+                document.getElementById('main-word-box').innerText = data.word;
+                document.getElementById('main-word-sub').innerText = `Объясни слово "${data.word}" своей команде в чате!`;
+                break;
 
-        if(d.type === "ROUND_START") {
-            switchScreen('game');
-            renderArena(d);
-        }
+            case "CHAT_NEW":
+                const chat = document.getElementById('chat-box');
+                const div = document.createElement('div');
+                div.className = 'msg-item';
+                div.innerHTML = `<b>${data.from}:</b> ${data.text}`;
+                chat.appendChild(div);
+                chat.scrollTop = chat.scrollHeight;
+                break;
 
-        if(d.type === "TIMER_TICK") {
-            const t = document.getElementById('timer');
-            t.innerText = d.time;
-            t.classList.toggle('low-time', d.time <= 10);
-        }
+            case "SCORE_UPDATE":
+                document.getElementById('scoreA').innerText = data.scores.A;
+                document.getElementById('scoreB').innerText = data.scores.B;
+                break;
 
-        if(d.type === "CHAT_NEW") {
-            const chat = document.getElementById('chat');
-            const m = document.createElement('div');
-            m.className = 'msg';
-            m.innerHTML = `<b>${d.from}:</b> ${d.text}`;
-            chat.appendChild(m);
-            chat.scrollTop = chat.scrollHeight;
-        }
-
-        if(d.type === "WIN_ANIM") {
-            const f = document.getElementById('flash');
-            f.style.opacity = 0.4;
-            setTimeout(() => f.style.opacity = 0, 400);
-        }
-
-        if(d.type === "SCORE_UPDATE") {
-            document.getElementById('scoreA').innerText = d.scores.A;
-            document.getElementById('scoreB').innerText = d.scores.B;
-        }
-
-        if(d.type === "NEW_WORD") {
-             document.getElementById('wordBox').innerText = d.word;
-             document.getElementById('hintText').innerText = `Объясни слово "${d.word}", не называя его и однокоренные!`;
+            case "WIN_ANIM":
+                const flash = document.getElementById('flash-effect');
+                flash.style.opacity = "0.5";
+                setTimeout(() => flash.style.opacity = "0", 300);
+                break;
         }
     };
 
-    function renderArena(d) {
-        const wBox = document.getElementById('wordBox');
-        const hText = document.getElementById('hintText');
-        const skipBtn = document.getElementById('skipBtn');
+    function setupRound(d) {
+        const wordBox = document.getElementById('main-word-box');
+        const hintBox = document.getElementById('main-word-sub');
+        const skipBtn = document.getElementById('skip-word-btn');
+        
+        myRole = d.role;
 
-        // Расставляем роли
         if(d.role === 'explainer') {
-            wBox.innerText = d.word;
-            wBox.style.color = "var(--neon)";
-            hText.innerText = `Объясни слово "${d.word}", не называя его!`;
-            skipBtn.classList.remove('hidden');
+            wordBox.innerText = d.word;
+            wordBox.style.color = "var(--neon)";
+            hintBox.innerText = `Давай подсказки в чат! Ведущий: ${d.explainerName}`;
+            skipBtn.style.display = "block";
         } else if(d.role === 'guesser') {
-            wBox.innerText = "УГАДЫВАЙ";
-            wBox.style.color = "#fff";
-            hText.innerText = `Внимательно читай объяснения в чате!`;
-            skipBtn.classList.add('hidden');
+            wordBox.innerText = "УГАДАЙ СЛОВО";
+            wordBox.style.color = "#fff";
+            hintBox.innerText = `Смотри в чат! Твой ведущий: ${d.explainerName}`;
+            skipBtn.style.display = "none";
         } else {
-            wBox.innerText = "НАБЛЮДАЙ";
-            wBox.style.color = "#555";
-            hText.innerText = "Сейчас ход другой команды";
-            skipBtn.classList.add('hidden');
+            wordBox.innerText = "ЖДЕМ ХОДА...";
+            wordBox.style.color = "#444";
+            hintBox.innerText = `Сейчас ходит команда ${d.team}`;
+            skipBtn.style.display = "none";
         }
 
+        // Обновляем карточки игроков
         d.playersInfo.forEach((p, i) => {
             const card = document.getElementById('p' + i);
             if(card) {
-                card.querySelector('.p-name').innerText = p.name;
-                card.classList.remove('active-exp', 'active-guess');
+                card.innerHTML = `<span class="p-name">${p.name}</span><span style="font-size:0.6rem; opacity:0.4">${p.team}</span>`;
+                card.className = "p-card";
                 if(p.name === d.explainerName) card.classList.add('active-exp');
                 else if(p.team === d.team) card.classList.add('active-guess');
             }
         });
     }
 
-    function create(mode) { ws.send(JSON.stringify({type:"CREATE_ROOM", mode})); }
-    function join() { ws.send(JSON.stringify({type:"JOIN_ROOM", roomId: document.getElementById('joinCode').value})); }
+    // ДЕЙСТВИЯ
+    function createRoom(mode) { ws.send(JSON.stringify({ type: "CREATE_ROOM", mode })); }
+    
+    function joinRoom() {
+        const code = document.getElementById('join-code-field').value.toUpperCase();
+        if(code) ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code }));
+    }
 
-    document.getElementById('in').onkeypress = (e) => {
-        if(e.key === 'Enter') {
-            ws.send(JSON.stringify({type:"CHAT_MESSAGE", text: e.target.value}));
+    function startGame() { ws.send(JSON.stringify({ type: "START_GAME" })); }
+
+    function skipWord() { ws.send(JSON.stringify({ type: "SKIP_WORD" })); }
+
+    // Чат
+    document.getElementById('game-input').addEventListener('keypress', (e) => {
+        if(e.key === 'Enter' && e.target.value.trim() !== '') {
+            ws.send(JSON.stringify({ type: "CHAT_MESSAGE", text: e.target.value }));
             e.target.value = '';
         }
-    };
+    });
+
+    // Факты
+    const facts = [
+        "Совет: Не используй жесты, пиши только текст!",
+        "Факт: В Elias Arena побеждает самая быстрая команда.",
+        "Совет: Пропуск слова отнимает 1 очко — будь осторожен!",
+        "Факт: Ты можешь играть в Elias даже в видео-звонках.",
+        "Совет: Чем короче подсказки, тем быстрее тебя поймут!"
+    ];
+    setInterval(() => {
+        const area = document.getElementById('facts-area');
+        area.style.opacity = 0;
+        setTimeout(() => {
+            area.innerText = facts[Math.floor(Math.random()*facts.length)];
+            area.style.opacity = 1;
+        }, 300);
+    }, 6000);
+
 </script>
 </body>
 </html>
