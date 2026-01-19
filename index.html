@@ -3,158 +3,261 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Elians Pro</title>
+    <title>Elians Neon</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --neon: #00f3ff; --pink: #bc13fe; --bg: #090c1f; }
+        :root { --neon: #00f3ff; --pink: #bc13fe; --bg: #050716; }
         body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; overflow: hidden; }
-        .screen { display: none; flex-direction: column; align-items: center; padding: 20px; height: 100vh; box-sizing: border-box; }
+        
+        .screen { display: none; flex-direction: column; align-items: center; padding: 20px; height: 100vh; box-sizing: border-box; animation: fadeIn 0.5s; }
         .active { display: flex; }
-        .btn { background: linear-gradient(90deg, var(--neon), var(--pink)); border: none; padding: 15px 30px; border-radius: 30px; font-weight: bold; font-size: 1.1rem; color: #fff; margin: 10px; width: 80%; box-shadow: 0 5px 20px rgba(188,19,254,0.4); }
-        input { background: rgba(255,255,255,0.1); border: 1px solid var(--neon); padding: 15px; border-radius: 15px; color: white; width: 80%; text-align: center; font-size: 1.2rem; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 0 0 15px var(--neon); letter-spacing: 5px; }
+
+        .btn {
+            background: linear-gradient(135deg, var(--neon), var(--pink));
+            border: none; border-radius: 20px; padding: 16px; color: white; font-weight: bold; font-size: 1.1rem;
+            width: 90%; max-width: 350px; margin: 10px 0; cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); transition: transform 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-outline { background: transparent; border: 2px solid var(--neon); box-shadow: none; color: var(--neon); }
+
+        .mode-card {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--pink); border-radius: 20px;
+            padding: 20px; width: 85%; margin: 10px; cursor: pointer; text-align: left;
+            transition: 0.3s;
+        }
+        .mode-card:hover { background: rgba(188, 19, 254, 0.1); transform: translateY(-3px); }
+
+        input { background: rgba(255,255,255,0.1); border: 1px solid var(--neon); padding: 15px; border-radius: 15px; color: white; width: 80%; text-align: center; font-size: 1.2rem; margin: 10px 0; }
+
+        /* Лобби анимации */
+        .lobby-code { font-size: 2.5rem; color: var(--neon); text-shadow: 0 0 20px var(--neon); margin: 20px 0; letter-spacing: 3px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; text-shadow: 0 0 30px var(--neon); } 100% { opacity: 0.8; } }
         
-        /* Таймер */
-        .timer-container { width: 100%; height: 6px; background: #333; position: absolute; top: 0; left: 0; }
-        .timer-bar { height: 100%; background: var(--neon); width: 100%; transition: width 1s linear; box-shadow: 0 0 10px var(--neon); }
-        
-        /* Карточка статуса */
-        .status-card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; width: 90%; margin: 20px 0; border: 1px solid rgba(255,255,255,0.1); }
-        .role-title { color: var(--neon); font-size: 1.5rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px; }
-        
-        #wordBox { font-size: 2.5rem; font-weight: 800; text-shadow: 0 0 20px var(--pink); margin: 30px 0; }
-        #live-hint { font-size: 1.8rem; min-height: 50px; color: #fff; margin-top: 20px; }
-        
-        .score-board { display: flex; justify-content: space-around; width: 100%; margin-top: 10px; font-size: 1.2rem; }
-        .team-a { color: var(--neon); }
-        .team-b { color: var(--pink); }
+        .fact-box {
+            background: rgba(0,0,0,0.3); padding: 15px; border-radius: 10px; border-left: 3px solid var(--pink);
+            margin-top: auto; margin-bottom: 20px; font-size: 0.9rem; color: #ddd; min-height: 80px;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+
+        /* Игровой интерфейс */
+        .timer-bar { height: 5px; background: var(--pink); width: 100%; position: absolute; top: 0; left: 0; box-shadow: 0 0 10px var(--pink); }
+        .status-badge { background: var(--neon); color: black; padding: 5px 15px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 15px; }
+        .score-board { display: flex; justify-content: space-around; width: 100%; padding: 10px; background: rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
 
 <div id="menu" class="screen active">
-    <h1 style="font-size:3rem; text-shadow: 0 0 20px var(--neon)">ELIANS</h1>
-    <button class="btn" onclick="ws.send(JSON.stringify({type:'CREATE_ROOM'}))">СОЗДАТЬ КОМНАТУ</button>
-    <input id="joinInput" placeholder="Код комнаты" style="margin-top:20px;">
-    <button class="btn" style="background: transparent; border: 1px solid var(--neon);" onclick="join()">ВОЙТИ</button>
+    <h1>ELIANS</h1>
+    <p style="color: #aaa; margin-top: -10px;">Neon Party Game</p>
+    <button class="btn" onclick="showScreen('modes')">Создать комнату</button>
+    <input id="joinInput" placeholder="Введите код">
+    <button class="btn btn-outline" onclick="joinRoom()">Войти</button>
+</div>
+
+<div id="modes" class="screen">
+    <h2>Выберите режим</h2>
+    <div class="mode-card" onclick="createRoom('online')">
+        <h3 style="margin:0">🌐 По сети</h3>
+        <p style="font-size:0.8rem; color:#ccc">Классика. Чат в реальном времени. Вы пишите объяснения.</p>
+    </div>
+    <div class="mode-card" onclick="createRoom('call')">
+        <h3 style="margin:0">📞 Созвон</h3>
+        <p style="font-size:0.8rem; color:#ccc">Для звонков в ТГ/Дискорд. Чат скрыт. Просто считайте очки.</p>
+    </div>
+    <button class="btn btn-outline" onclick="showScreen('menu')">Назад</button>
 </div>
 
 <div id="lobby" class="screen">
-    <h2>ОЖИДАНИЕ...</h2>
-    <div id="lobbyCode" style="font-size: 2rem; color: var(--pink);"></div>
-    <div id="lobbyCount" style="margin: 20px; opacity: 0.7;">Игроков: 1</div>
-    <div style="font-size: 0.8rem; opacity: 0.5;">Нужно минимум 4 для старта</div>
-    <button class="btn" id="startBtn" onclick="ws.send(JSON.stringify({type:'START_GAME'}))" style="display:none">НАЧАТЬ ИГРУ</button>
+    <h2 style="color:white">ОЖИДАНИЕ...</h2>
+    <div id="lobbyCode" class="lobby-code">---</div>
+    
+    <div id="lobbyList" style="margin-bottom: 20px; width: 100%;">
+        <div style="opacity: 0.6">Ждем игроков...</div>
+    </div>
+    
+    <button class="btn" onclick="inviteFriend()">Пригласить друзей 📤</button>
+    
+    <button id="startBtn" class="btn" style="background: #2ecc71; display:none;" onclick="ws.send(JSON.stringify({type:'START_GAME'}))">ПОГНАЛИ! 🚀</button>
+
+    <div class="fact-box">
+        <b style="color: var(--neon)">💡 А вы знали?</b>
+        <span id="factText">Загрузка факта...</span>
+    </div>
+    <button class="btn btn-outline" style="margin-top: 10px; padding: 10px;" onclick="showScreen('menu')">Выйти</button>
 </div>
 
 <div id="game" class="screen">
-    <div class="timer-container"><div id="timerBar" class="timer-bar"></div></div>
-    
+    <div class="timer-bar" id="timerBar"></div>
     <div class="score-board">
-        <span class="team-a">TEAM A: <b id="scoreA">0</b></span>
-        <span class="team-b">TEAM B: <b id="scoreB">0</b></span>
+        <span style="color:var(--neon)">TEAM A: <b id="scoreA">0</b></span>
+        <span style="color:var(--pink)">TEAM B: <b id="scoreB">0</b></span>
     </div>
 
-    <div id="explainerUI" style="display:none; width: 100%; display: flex; flex-direction: column; align-items: center;">
-        <div class="status-card">
-            <div class="role-title">ТЫ ОБЪЯСНЯЕШЬ!</div>
-            <div>Слово:</div>
-            <div id="wordBox">---</div>
+    <div id="gameContent" style="display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: 30px;">
         </div>
-        <input id="hintInput" placeholder="Вводи подсказку..." oninput="sendHint()">
-        <button class="btn" style="background: #2ecc71; margin-top: 20px;" onclick="ws.send(JSON.stringify({type:'CORRECT'}))">ЕСТЬ! (Угадали)</button>
-    </div>
-
-    <div id="guesserUI" style="display:none; width: 100%; flex-direction: column; align-items: center;">
-        <div class="status-card">
-            <div class="role-title">ТЫ УГАДЫВАЕШЬ!</div>
-            <div>Смотри на подсказки:</div>
-            <div id="live-hint">...</div>
-        </div>
-    </div>
-
-    <div id="spectatorUI" style="display:none; width: 100%; flex-direction: column; align-items: center;">
-        <div class="status-card" style="border-color: #555;">
-            <div class="role-title" style="color: #777;">ХОД ПРОТИВНИКА</div>
-            <div id="spectatorText">Объясняет: ...</div>
-            <div style="margin-top:20px; font-size: 1.5rem;" id="specHint"></div>
-        </div>
-    </div>
 </div>
 
 <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
-    
     const ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
-    let timerInt;
+    
+    let currentRoom = "";
+    let currentMode = "online";
+    let factInterval;
+    
+    const facts = [
+        "Alias был придуман в Финляндии в начале 90-х.",
+        "Рекорд объяснения слов: 30 штук за минуту!",
+        "Слово 'Морфеус' объясняют чаще всего как 'Нео'.",
+        "Самые сложные слова — абстрактные понятия.",
+        "В режиме 'Созвон' можно кричать громче!",
+        "Если не знаете слово — лучше пропустите."
+    ];
 
-    ws.onopen = () => ws.send(JSON.stringify({ type: "REGISTER", userId: tg.initDataUnsafe.user?.id || Math.random(), username: tg.initDataUnsafe.user?.first_name || "Guest" }));
+    ws.onopen = () => ws.send(JSON.stringify({ 
+        type: "REGISTER", 
+        userId: tg.initDataUnsafe.user?.id || Math.random(), 
+        username: tg.initDataUnsafe.user?.first_name || "Игрок" 
+    }));
 
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
-        
+
+        // Создание
         if(d.type === "ROOM_CREATED") {
-            document.getElementById('lobbyCode').innerText = d.roomId;
-            showScreen('lobby');
+            currentRoom = d.roomId;
+            setupLobby(d.roomId);
         }
         
+        // Вход (для того, кто присоединился)
+        if(d.type === "JOIN_SUCCESS") {
+            currentRoom = d.roomId;
+            currentMode = d.mode;
+            setupLobby(d.roomId);
+        }
+
+        // Обновление лобби (список)
         if(d.type === "LOBBY_UPDATE") {
-            document.getElementById('lobbyCode').innerText = "Код: " + (d.roomId || "...");
-            document.getElementById('lobbyCount').innerText = "Игроков: " + d.count;
-            if(d.count >= 4) document.getElementById('startBtn').style.display = "block";
+            document.getElementById('lobbyList').innerHTML = d.players.map(p => `<div>👤 ${p}</div>`).join("");
+            if (d.count >= 2) document.getElementById('startBtn').style.display = "block"; // Порог игроков (мин 2 для теста)
         }
-        
-        if(d.type === "ERROR") alert(d.text);
-        
+
+        if(d.type === "ERROR") tg.showAlert(d.text);
+
         if(d.type === "ROUND_START") {
             showScreen('game');
-            startTimerAnimation(d.time);
-            
-            // Сброс интерфейса
-            ['explainerUI', 'guesserUI', 'spectatorUI'].forEach(id => document.getElementById(id).style.display = 'none');
-            document.getElementById('hintInput').value = '';
-            document.getElementById('live-hint').innerText = '';
-            
-            if(d.role === 'explainer') {
-                document.getElementById('explainerUI').style.display = 'flex';
-                document.getElementById('wordBox').innerText = d.word;
-            } else if(d.role === 'guesser') {
-                document.getElementById('guesserUI').style.display = 'flex';
-            } else {
-                document.getElementById('spectatorUI').style.display = 'flex';
-                document.getElementById('spectatorText').innerText = "Объясняет: " + d.explainerName;
-            }
+            clearInterval(factInterval); // Остановить факты
+            renderGameScreen(d);
+            startTimer(d.time);
         }
-        
+
         if(d.type === "LIVE_HINT") {
-            document.getElementById('live-hint').innerText = d.text;
-            document.getElementById('specHint').innerText = d.text;
+            const el = document.getElementById('liveHintText');
+            if(el) el.innerText = d.text;
         }
-        
+
         if(d.type === "SCORE_UPDATE") {
             document.getElementById('scoreA').innerText = d.scores.A;
             document.getElementById('scoreB').innerText = d.scores.B;
         }
-        
+
         if(d.type === "NEW_WORD") {
-            document.getElementById('wordBox').innerText = d.word;
-            document.getElementById('hintInput').value = '';
+            const el = document.getElementById('wordBox');
+            if(el) el.innerText = d.word;
+            const inp = document.getElementById('hintInput');
+            if(inp) inp.value = '';
         }
     };
 
-    function startTimerAnimation(seconds) {
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function createRoom(mode) {
+        currentMode = mode;
+        ws.send(JSON.stringify({ type: "CREATE_ROOM", mode: mode }));
+    }
+
+    function joinRoom() {
+        const code = document.getElementById('joinInput').value;
+        if(code) ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code }));
+    }
+
+    function setupLobby(code) {
+        document.getElementById('lobbyCode').innerText = code;
+        showScreen('lobby');
+        
+        // Запуск фактов
+        const factEl = document.getElementById('factText');
+        factEl.innerText = facts[0];
+        if(factInterval) clearInterval(factInterval);
+        factInterval = setInterval(() => {
+            factEl.innerText = facts[Math.floor(Math.random() * facts.length)];
+        }, 4000);
+    }
+
+    function inviteFriend() {
+        const text = `Залетай ко мне в Alias! Код: ${currentRoom}`;
+        // Пробуем нативный шеринг Телеграма
+        const url = `https://t.me/share/url?url=${encodeURIComponent(text)}`;
+        tg.openTelegramLink(url);
+    }
+
+    function sendHint() {
+        const val = document.getElementById('hintInput').value;
+        ws.send(JSON.stringify({ type: "HINT", text: val }));
+    }
+
+    function renderGameScreen(d) {
+        const container = document.getElementById('gameContent');
+        container.innerHTML = ''; // Очистка
+
+        // 1. ТЫ ВЕДУЩИЙ
+        if(d.role === 'explainer') {
+            container.innerHTML = `
+                <div class="status-badge">ТЫ ОБЪЯСНЯЕШЬ</div>
+                <div style="font-size:2.5rem; font-weight:bold; margin:20px 0; text-shadow:0 0 20px var(--pink)" id="wordBox">${d.word}</div>
+                ${d.mode === 'online' ? `<input id="hintInput" placeholder="Пиши подсказку..." oninput="sendHint()">` : `<div style="opacity:0.7">Говорите в звонке!</div>`}
+                <button class="btn" style="background:#2ecc71; margin-top:20px" onclick="ws.send(JSON.stringify({type:'CORRECT'}))">ЕСТЬ! ✅</button>
+            `;
+        } 
+        // 2. ТЫ УГАДЫВАЕШЬ (Своя команда)
+        else if(d.role === 'guesser') {
+            container.innerHTML = `
+                <div class="status-badge">ТЫ УГАДЫВАЕШЬ</div>
+                <div style="opacity:0.7; margin-top:20px">Ведущий: ${d.explainerName}</div>
+                ${d.mode === 'online' ? 
+                    `<div id="liveHintText" style="font-size:1.5rem; color:var(--neon); margin-top:30px; min-height:50px">...</div>` : 
+                    `<div style="font-size:1.2rem; margin-top:30px">Слушай звонок! 🎧</div>`
+                }
+            `;
+        } 
+        // 3. ЗРИТЕЛЬ (Чужая команда)
+        else {
+            container.innerHTML = `
+                <div class="status-badge" style="background:#555; color:white">ХОД ПРОТИВНИКА</div>
+                <div style="margin-top:20px">Объясняет: ${d.explainerName}</div>
+                <div style="opacity:0.5; font-size:0.8rem; margin-top:50px">Ждем своей очереди...</div>
+            `;
+        }
+    }
+
+    function startTimer(sec) {
         const bar = document.getElementById('timerBar');
         bar.style.transition = 'none';
         bar.style.width = '100%';
         setTimeout(() => {
-            bar.style.transition = `width ${seconds}s linear`;
+            bar.style.transition = `width ${sec}s linear`;
             bar.style.width = '0%';
         }, 100);
     }
-
-    function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
-    function join() { const c = document.getElementById('joinInput').value; if(c) ws.send(JSON.stringify({type:"JOIN_ROOM", roomId: c})); }
-    function sendHint() { ws.send(JSON.stringify({type:"HINT", text: document.getElementById('hintInput').value})); }
 </script>
 </body>
 </html>
