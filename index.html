@@ -2,97 +2,215 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elians Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Elians Neon</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { margin: 0; background: #0b0f2a; color: white; font-family: sans-serif; text-align: center; }
-        .screen { display: none; padding: 20px; }
-        .active { display: block; }
-        .btn { background: linear-gradient(135deg, #6a7cff, #a16bff); border: none; border-radius: 15px; padding: 12px 24px; color: white; cursor: pointer; margin: 10px; font-weight: bold; }
-        input { padding: 12px; border-radius: 10px; border: none; margin: 10px; width: 80%; }
-        #live-hint { font-size: 22px; color: #ffeb3b; min-height: 40px; margin: 20px; border: 1px dashed #555; padding: 10px; }
-        #word-display { font-size: 28px; color: #4caf50; font-weight: bold; margin: 15px; }
+        :root {
+            --neon-blue: #00d2ff;
+            --neon-purple: #9d50bb;
+            --dark-bg: #050716;
+            --card-bg: rgba(255, 255, 255, 0.07);
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at top, #0b0f2a, var(--dark-bg));
+            color: white;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            height: 100%;
+            width: 100%;
+            box-sizing: border-box;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .active { display: flex; }
+
+        h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 0 0 15px var(--neon-blue); letter-spacing: 5px; }
+
+        .btn {
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+            border: none;
+            border-radius: 20px;
+            padding: 16px;
+            color: white;
+            font-weight: bold;
+            width: 90%;
+            max-width: 300px;
+            margin: 10px 0;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        .btn:active { transform: scale(0.95); filter: brightness(1.2); }
+
+        .mode-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(0, 210, 255, 0.2);
+            border-radius: 25px;
+            padding: 20px;
+            width: 90%;
+            margin: 10px;
+            text-align: left;
+            backdrop-filter: blur(10px);
+        }
+
+        .rule-box {
+            font-size: 0.9rem;
+            color: #ccc;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 15px;
+            margin: 15px 0;
+            border-left: 4px solid var(--neon-purple);
+        }
+
+        input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--neon-blue);
+            padding: 15px;
+            border-radius: 15px;
+            color: white;
+            width: 80%;
+            margin: 10px 0;
+            text-align: center;
+            outline: none;
+        }
+
+        #live-hint {
+            font-size: 1.5rem;
+            min-height: 50px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px var(--neon-blue);
+            margin: 20px 0;
+        }
+
+        .score-badge {
+            background: var(--card-bg);
+            padding: 5px 15px;
+            border-radius: 50px;
+            border: 1px solid var(--neon-purple);
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 <body>
 
 <div id="menu" class="screen active">
     <h1>ELIANS</h1>
-    <button class="btn" onclick="createRoom()">Создать комнату</button><br>
-    <input id="joinCode" placeholder="Код комнаты"><br>
-    <button class="btn" onclick="joinRoom()">Войти в комнату</button>
+    <p style="color: var(--neon-blue)">Morpheus Edition</p>
+    <button class="btn" onclick="showScreen('modes')">Начать игру</button>
+    <button class="btn" style="opacity: 0.7" onclick="showScreen('online')">Список друзей</button>
 </div>
 
-<div id="room" class="screen">
-    <h2 id="roomTitle">Ожидание...</h2>
-    <div id="playerList"></div>
-    <button class="btn" onclick="startRound()">НАЧАТЬ РАУНД</button>
+<div id="modes" class="screen">
+    <h2>Выберите режим</h2>
+    <div class="mode-card" onclick="selectMode('online')">
+        <h3>🌐 По сети</h3>
+        <p>Классический Elians с чатом в реальном времени.</p>
+    </div>
+    <div class="mode-card" onclick="selectMode('call')">
+        <h3>📞 Режим созвона</h3>
+        <p>Играйте голосом в Discord или Telegram. Чат скрыт.</p>
+    </div>
+    <button class="btn" onclick="showScreen('menu')" style="background: none; border: 1px solid #555;">Назад</button>
+</div>
+
+<div id="setup" class="screen">
+    <h2 id="setupTitle">Правила</h2>
+    <div id="rulesContent" class="rule-box"></div>
+    <input id="joinCode" placeholder="ВВЕДИТЕ КОД КОМНАТЫ">
+    <button class="btn" onclick="joinRoom()">Войти в комнату</button>
+    <button class="btn" onclick="createRoom()" style="background: rgba(255,255,255,0.1)">Создать новую</button>
+</div>
+
+<div id="online" class="screen">
+    <h3>Список друзей</h3>
+    <p style="font-size: 0.8rem">Чтобы пригласить друга, он должен хотя бы раз запустить бота!</p>
+    <div id="friendList" style="width: 100%"></div>
+    <button class="btn" onclick="showScreen('menu')">Назад</button>
 </div>
 
 <div id="game" class="screen">
-    <div id="scoreBoard">Очки: A: 0 | B: 0</div>
-    <div id="word-display"></div>
-    <div id="live-hint">Подсказка появится тут...</div>
-    <input id="hintInput" placeholder="Твоя подсказка..." oninput="sendHint()" style="display:none;">
-    <button id="correctBtn" class="btn" onclick="correct()" style="display:none; background: #4caf50;">УГАДАЛИ!</button>
+    <div class="score-badge" id="scoreA">Команда A: 0</div>
+    <div id="wordDisplay" style="font-size: 2rem; margin: 20px 0; font-weight: bold;"></div>
+    <div id="live-hint">Ожидание игрока...</div>
+    
+    <input id="hintInput" placeholder="Объясняй слово..." oninput="sendHint()" style="display:none;">
+    <button id="correctBtn" class="btn" onclick="sendAction('CORRECT')" style="display:none; background: #2ecc71;">УГАДАЛИ!</button>
+    
+    <div id="timer" style="margin-top: auto; font-size: 1.2rem;">60s</div>
 </div>
 
 <script>
-    const WS_URL = window.location.origin.replace(/^http/, 'ws');
-    const ws = new WebSocket(WS_URL);
-    const userId = "u" + Math.random().toString(36).substring(7);
-    const username = "Игрок_" + Math.floor(Math.random()*100);
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+    let currentMode = 'online';
+    const userId = tg.initDataUnsafe?.user?.id || "u" + Math.random().toString(36).substring(7);
+    const username = tg.initDataUnsafe?.user?.first_name || "Morpheus_Guest";
 
     ws.onopen = () => {
-        console.log("WS подключен!");
-        ws.send(JSON.stringify({ type: "REGISTER", userId, username }));
+        ws.send(JSON.stringify({ type: "REGISTER", userId, username, tgId: tg.initDataUnsafe?.user?.id }));
     };
 
     ws.onmessage = (e) => {
         const data = JSON.parse(e.data);
-        console.log("Получено:", data);
-
-        if (data.type === "ROOM_CREATED") {
-            document.getElementById("roomTitle").innerText = "Код: " + data.roomId;
-            showScreen("room");
-        }
-        if (data.type === "PLAYERS_UPDATE") {
-            document.getElementById("playerList").innerHTML = data.players.map(p => `<div>${p.name} (Команда ${p.team})</div>`).join("");
-            showScreen("room");
+        if (data.type === "ROOM_CREATED" || data.type === "PLAYERS_UPDATE") {
+            showScreen('game'); // Упростим для теста: сразу в бой
         }
         if (data.type === "ROUND_START") {
-            showScreen("game");
-            setupRole(data.role, data.word);
+            document.getElementById('wordDisplay').innerText = data.word ? data.word.toUpperCase() : "УГАДЫВАЙТЕ!";
+            document.getElementById('hintInput').style.display = data.word ? 'block' : 'none';
+            document.getElementById('correctBtn').style.display = data.word ? 'block' : 'none';
         }
-        if (data.type === "HINT_LIVE") {
-            document.getElementById("live-hint").innerText = data.from + ": " + data.text;
-        }
-        if (data.type === "SCORE_UPDATE") {
-            document.getElementById("scoreBoard").innerText = `Очки: A: ${data.scores.A} | B: ${data.scores.B}`;
-        }
-        if (data.type === "NEW_WORD") {
-            document.getElementById("word-display").innerText = "СЛОВО: " + data.word;
-            document.getElementById("hintInput").value = "";
+        if (data.type === "HINT_LIVE" && currentMode !== 'call') {
+            document.getElementById('live-hint').innerText = data.text;
         }
     };
 
-    function showScreen(id) {
-        document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-        document.getElementById(id).classList.add("active");
+    function selectMode(mode) {
+        currentMode = mode;
+        const rules = {
+            online: "Объясняйте слова через чат. Ваша команда видит подсказки мгновенно. Скип - минус балл.",
+            call: "Созвонитесь с друзьями! В этом режиме чат скрыт, чтобы не отвлекать. Просто жмите 'Угадали', когда партнер назовет слово."
+        };
+        document.getElementById('rulesContent').innerText = rules[mode];
+        showScreen('setup');
     }
 
-    function setupRole(role, word) {
-        const isL = (role === "leader");
-        document.getElementById("hintInput").style.display = isL ? "inline-block" : "none";
-        document.getElementById("correctBtn").style.display = isL ? "inline-block" : "none";
-        document.getElementById("word-display").innerText = isL ? "СЛОВО: " + word : "УГАДЫВАЙТЕ!";
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
     }
 
     function createRoom() { ws.send(JSON.stringify({ type: "CREATE_ROOM" })); }
-    function joinRoom() { ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: document.getElementById("joinCode").value })); }
-    function startRound() { ws.send(JSON.stringify({ type: "START_ROUND" })); }
-    function sendHint() { ws.send(JSON.stringify({ type: "HINT", text: document.getElementById("hintInput").value })); }
-    function correct() { ws.send(JSON.stringify({ type: "CORRECT" })); }
+    function joinRoom() { 
+        const code = document.getElementById('joinCode').value;
+        ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code.toUpperCase() })); 
+    }
+    function sendHint() {
+        ws.send(JSON.stringify({ type: "HINT", text: document.getElementById('hintInput').value }));
+    }
+    function sendAction(type) { ws.send(JSON.stringify({ type: type })); }
 </script>
 </body>
 </html>
