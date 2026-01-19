@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 // --- НАСТРОЙКИ ---
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = "8522033211:AAFW_vrhSl1S35APmBSd5_DCv8T9YpR9f-8";
-const APP_URL = "https://твой-адрес.onrender.com"; // ЗАМЕНИ НА СВОЙ АДРЕС ОТ RENDER
+// Укажи здесь свою ссылку на Render:
+const APP_URL = "https://elias-tg.onrender.com"; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,16 +19,19 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(path.join(__dirname, "public")));
+// Работаем с файлами в корне репозитория
+app.use(express.static(__dirname));
 
-// Роуты для Render
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
+
 app.get('/health', (req, res) => res.sendStatus(200));
 
 // --- БОТ ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Настройка кнопки меню приложения
+// Настройка кнопки меню возле строки ввода
 bot.setChatMenuButton({
     menu_button: JSON.stringify({
         type: "web_app",
@@ -37,17 +41,16 @@ bot.setChatMenuButton({
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, `Привет, ${msg.from.first_name}! 👋\n\nЯ — бот игры *Elians*.\n\nНажми на кнопку слева от ввода, чтобы запустить крутой неоновый интерфейс!`, {
-        parse_mode: "Markdown"
-    });
+    const welcomeText = `Приветствую! 👋\n\nВы попали в бота *Elians*, созданного *Morpheus (Nikita)*.\n\nДля продолжения нажмите на кнопку «Elians» возле строки ввода сообщений, чтобы открыть приложение и ознакомиться с интерфейсом!\n\nВ приложении вы сможете:\n- выбрать режим игры,\n- прочитать правила,\n- создать комнату,\n- пригласить друзей,\n- играть в Alias в реальном времени.\n\nУдачной игры!`;
+    
+    bot.sendMessage(msg.chat.id, welcomeText, { parse_mode: "Markdown" });
 });
 
-// --- ПАМЯТЬ СЕРВЕРА ---
-const rooms = new Map();   // roomId -> { players, scores, word, presenterIdx, timer }
-const users = new Map();   // ws -> { userId, username, roomId, team, tgId }
-const wordList = ["САМОЛЕТ", "ТЕЛЕФОН", "МАФИЯ", "ПИЦЦА", "КОСМОС", "ГИТАРА", "НИНДЗЯ", "ЗОМБИ", "АРБУЗ", "ШОКОЛАД", "ТАНК", "ВЕРТОЛЕТ", "КЕНГУРУ", "ОКЕАН", "МОРФЕУС"];
+// --- ЛОГИКА ИГРЫ ---
+const rooms = new Map();
+const users = new Map(); // ws -> data
+const wordList = ["САМОЛЕТ", "ТЕЛЕФОН", "КОМПЬЮТЕР", "ПИЦЦА", "КОСМОС", "ГИТАРА", "ОСТРОВ", "АРБУЗ", "ТАНК", "ВЕРТОЛЕТ", "КЕНГУРУ", "ШОКОЛАД", "МАФИЯ", "ЗОМБИ", "МОРФЕУС"];
 
-// --- УТИЛИТЫ ---
 function broadcast(roomId, data) {
     const room = rooms.get(roomId);
     if (room) {
@@ -57,8 +60,8 @@ function broadcast(roomId, data) {
     }
 }
 
-// --- СЕТЕВАЯ ЛОГИКА ---
 wss.on("connection", (ws) => {
+    console.log("[WS] Новое подключение");
     users.set(ws, { userId: null, username: "Гость", roomId: null, team: null, tgId: null });
 
     ws.on("message", (raw) => {
@@ -71,14 +74,7 @@ wss.on("connection", (ws) => {
                 user.userId = msg.userId;
                 user.username = msg.username;
                 user.tgId = msg.tgId;
-                console.log(`[LOG] Зарегистрирован: ${user.username}`);
-                break;
-
-            case "GET_ONLINE_USERS":
-                const online = Array.from(users.values())
-                    .filter(u => u.userId && u.userId !== user.userId)
-                    .map(u => ({ userId: u.userId, username: u.username }));
-                ws.send(JSON.stringify({ type: "FRIENDS_LIST", list: online }));
+                console.log(`[USER] Зарегистрирован: ${user.username}`);
                 break;
 
             case "CREATE_ROOM":
@@ -111,27 +107,7 @@ wss.on("connection", (ws) => {
                 }
                 break;
 
-            case "START_ROUND":
-                const rs = rooms.get(user.roomId);
-                if (!rs) return;
-                
-                // Рандомное слово
-                rs.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
-                const presenter = rs.players[rs.presenterIdx];
-
-                rs.players.forEach(p => {
-                    const isP = (p === presenter);
-                    p.send(JSON.stringify({
-                        type: "ROUND_START",
-                        word: isP ? rs.currentWord : null,
-                        role: isP ? "leader" : "guesser",
-                        mode: rs.mode
-                    }));
-                });
-                break;
-
             case "HINT":
-                // Живая подсказка
                 broadcast(user.roomId, {
                     type: "HINT_LIVE",
                     text: msg.text,
@@ -142,32 +118,17 @@ wss.on("connection", (ws) => {
             case "CORRECT":
                 const rc = rooms.get(user.roomId);
                 if (!rc) return;
-
                 rc.scores[user.team]++;
                 rc.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
                 
-                broadcast(user.roomId, {
-                    type: "SCORE_UPDATE",
-                    scores: rc.scores
-                });
-
-                // Выдаем ведущему новое слово
-                const currentLeader = rc.players[rc.presenterIdx];
-                currentLeader.send(JSON.stringify({
-                    type: "ROUND_START", // Переиспользуем для обновления слова
+                broadcast(user.roomId, { type: "SCORE_UPDATE", scores: rc.scores });
+                
+                // Смена слова для ведущего
+                rc.players[rc.presenterIdx].send(JSON.stringify({
+                    type: "ROUND_START",
                     word: rc.currentWord,
                     role: "leader"
                 }));
-                break;
-
-            case "INVITE":
-                // Поиск игрока для приглашения через бота
-                for (let [sock, uData] of users.entries()) {
-                    if (uData.userId == msg.targetUserId && uData.tgId) {
-                        bot.sendMessage(uData.tgId, `🎮 *${user.username}* приглашает тебя в Elians!\nКод комнаты: \`${msg.roomId}\``, { parse_mode: "Markdown" });
-                        break;
-                    }
-                }
                 break;
         }
     });
@@ -186,5 +147,5 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SERVER] Elians запущен на порту ${PORT}`);
+    console.log(`[SERVER] Запущен на порту ${PORT}`);
 });
