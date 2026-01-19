@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 // ====== НАСТРОЙКИ ======
 const PORT = process.env.PORT || 3000;
-const BOT_TOKEN = process.env.BOT_TOKEN;
+const BOT_TOKEN = "8522033211:AAHlMuTys-bIQAWNMFQA0DnOS4CAMYRyj5U";
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN не задан!");
 
 const __filename = fileURLToPath(import.meta.url);
