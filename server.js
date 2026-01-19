@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 // --- НАСТРОЙКИ ---
 const PORT = process.env.PORT || 3000;
-const BOT_TOKEN = "8522033211:AAFW_vrhSl1S35APmBSd5_DCv8T9YpR9f-8";
+const BOT_TOKEN = "8522033211:AAHBzsYb3EcchhWRaB094zQksBv-WoVum-4";
 // Укажи здесь свою ссылку на Render:
 const APP_URL = "https://elias-tg.onrender.com"; 
 
