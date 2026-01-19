@@ -13,42 +13,28 @@ body {
   font-family: Arial, sans-serif;
   text-align: center;
 }
-
-.screen { display: none; padding: 20px; }
-.active { display: block; }
+.screen { display:none; padding:20px; }
+.active { display:block; }
 
 .btn {
   background: linear-gradient(135deg, #6a7cff, #a16bff);
-  border: none;
-  border-radius: 20px;
-  padding: 10px 16px;
-  color: white;
-  font-weight: 600;
-  margin: 6px;
-  cursor: pointer;
-}
-
-.card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(124,138,255,0.3);
-  border-radius: 16px;
-  padding: 14px;
-  margin: 10px auto;
-  max-width: 420px;
+  border:none; border-radius:20px;
+  padding:10px 16px; color:white;
+  margin:6px; cursor:pointer;
 }
 
 .game-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  max-width: 650px;
-  margin: 10px auto;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  max-width:650px;
+  margin:10px auto;
 }
 
 .player {
-  background: rgba(255,255,255,0.06);
-  border-radius: 16px;
-  padding: 10px;
+  background:rgba(255,255,255,0.06);
+  border-radius:16px;
+  padding:10px;
 }
 </style>
 </head>
@@ -78,11 +64,12 @@ body {
 <div id="game" class="screen">
   <h3>Игра идёт</h3>
   <div>⏱ <span id="time">60</span> сек</div>
+
   <div class="game-grid">
-    <div class="player" id="p1">Игрок 1 — A</div>
-    <div class="player" id="p2">Игрок 2 — A</div>
-    <div class="player" id="p3">Игрок 3 — B</div>
-    <div class="player" id="p4">Игрок 4 — B</div>
+    <div class="player">Игрок 1 — A</div>
+    <div class="player">Игрок 2 — A</div>
+    <div class="player">Игрок 3 — B</div>
+    <div class="player">Игрок 4 — B</div>
   </div>
 
   <input id="hint" placeholder="Подсказка" oninput="sendHint()"><br>
@@ -104,7 +91,7 @@ const WS_URL = location.protocol === "https:"
 
 const ws = new WebSocket(WS_URL);
 
-const userId = "u" + Math.random().toString(36).substring(2, 9);
+const userId = "u" + Math.random().toString(36).substring(2,9);
 const username = "Игрок_" + userId;
 let currentRoom = null;
 
@@ -115,16 +102,17 @@ function show(id){
 
 ws.onopen = () => {
   ws.send(JSON.stringify({
-    type: "REGISTER",
+    type:"REGISTER",
     userId,
     username
   }));
 };
 
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
+ws.onmessage = (e) => {
+  const data = JSON.parse(e.data);
 
-  switch (data.type) {
+  switch(data.type){
+
     case "ROOM_CREATED":
       currentRoom = data.roomId;
       document.getElementById("roomId").innerText = currentRoom;
@@ -134,7 +122,7 @@ ws.onmessage = (event) => {
     case "PLAYERS_UPDATE":
       const list = document.getElementById("players");
       list.innerHTML = "";
-      data.players.forEach(p => {
+      data.players.forEach(p=>{
         const d = document.createElement("div");
         d.innerText = p;
         list.appendChild(d);
@@ -144,13 +132,13 @@ ws.onmessage = (event) => {
     case "ONLINE_USERS":
       const online = document.getElementById("onlineList");
       online.innerHTML = "";
-      data.users.forEach(u => {
+      data.users.forEach(u=>{
         const d = document.createElement("div");
         d.innerText = u.username;
 
         const btn = document.createElement("button");
         btn.innerText = "Пригласить";
-        btn.onclick = () => invite(u.userId);
+        btn.onclick = ()=>invite(u.userId);
 
         d.appendChild(btn);
         online.appendChild(d);
@@ -161,7 +149,7 @@ ws.onmessage = (event) => {
     case "INVITE":
       alert(`Приглашение от ${data.from} в комнату ${data.roomId}`);
       currentRoom = data.roomId;
-      ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: data.roomId }));
+      ws.send(JSON.stringify({type:"JOIN_ROOM", roomId:data.roomId}));
       show("room");
       break;
 
@@ -174,70 +162,65 @@ ws.onmessage = (event) => {
       document.getElementById("time").innerText = data.time;
       break;
 
-    case "SCORE_UPDATE":
-      console.log("Очки:", data.scores);
-      break;
-
     case "LAST_WORD":
-      document.getElementById("lastWordOverlay").style.display = "flex";
+      document.getElementById("lastWordOverlay").style.display="flex";
       break;
   }
 };
 
 function createRoom(){
-  ws.send(JSON.stringify({ type: "CREATE_ROOM" }));
+  ws.send(JSON.stringify({type:"CREATE_ROOM"}));
 }
 
 function joinRoom(){
   const code = document.getElementById("joinCode").value.trim();
-  ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: code }));
+  ws.send(JSON.stringify({type:"JOIN_ROOM", roomId:code}));
 }
 
 function getOnline(){
-  ws.send(JSON.stringify({ type: "GET_ONLINE_USERS" }));
+  ws.send(JSON.stringify({type:"GET_ONLINE_USERS"}));
 }
 
 function invite(targetUserId){
   ws.send(JSON.stringify({
-    type: "INVITE",
-    roomId: currentRoom,
+    type:"INVITE",
+    roomId:currentRoom,
     targetUserId
   }));
 }
 
 function startRound(){
-  ws.send(JSON.stringify({ type: "START_ROUND" }));
+  ws.send(JSON.stringify({type:"START_ROUND"}));
 }
 
 function sendHint(){
   ws.send(JSON.stringify({
-    type: "HINT",
-    text: document.getElementById("hint").value
+    type:"HINT",
+    text:document.getElementById("hint").value
   }));
 }
 
 function sendGuess(e){
-  if (e.key === "Enter"){
+  if(e.key==="Enter"){
     ws.send(JSON.stringify({
-      type: "GUESS",
-      text: document.getElementById("guess").value
+      type:"GUESS",
+      text:document.getElementById("guess").value
     }));
-    document.getElementById("guess").value = "";
+    document.getElementById("guess").value="";
   }
 }
 
 function skipWord(){
-  ws.send(JSON.stringify({ type: "SKIP" }));
+  ws.send(JSON.stringify({type:"SKIP"}));
 }
 
 function correctWord(){
-  ws.send(JSON.stringify({ type: "CORRECT" }));
+  ws.send(JSON.stringify({type:"CORRECT"}));
 }
 
 function lastWord(){
-  ws.send(JSON.stringify({ type: "LAST_WORD" }));
+  ws.send(JSON.stringify({type:"LAST_WORD"}));
 }
 </script>
-
 </body>
 </html>
