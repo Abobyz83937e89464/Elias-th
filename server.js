@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const PORT = process.env.PORT || 3000;
-const BOT_TOKEN = "8512268012:AAGgYX7uKJhR8a2k4DncwJb7KRgETEoWtYU"; 
+const BOT_TOKEN = "8512268012:AAEHp1vRWo52GjjuuuJiMJkzF_WDWjkeaq0"; 
 const APP_URL = "https://elias-th.onrender.com"; // Твоя ссылка
 
 const __filename = fileURLToPath(import.meta.url);
