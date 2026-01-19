@@ -1,226 +1,105 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elians</title>
-
-<style>
-body {
-  margin: 0;
-  background: radial-gradient(circle at top, #0b0f2a, #050716);
-  color: white;
-  font-family: Arial, sans-serif;
-  text-align: center;
-}
-.screen { display:none; padding:20px; }
-.active { display:block; }
-
-.btn {
-  background: linear-gradient(135deg, #6a7cff, #a16bff);
-  border:none; border-radius:20px;
-  padding:10px 16px; color:white;
-  margin:6px; cursor:pointer;
-}
-
-.game-grid {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-  max-width:650px;
-  margin:10px auto;
-}
-
-.player {
-  background:rgba(255,255,255,0.06);
-  border-radius:16px;
-  padding:10px;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Elians Real-Time</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; background: #0b0f2a; color: white; font-family: sans-serif; text-align: center; }
+        .screen { display: none; padding: 20px; }
+        .active { display: block; }
+        .btn { background: linear-gradient(135deg, #6a7cff, #a16bff); border: none; border-radius: 15px; padding: 12px 24px; color: white; cursor: pointer; margin: 5px; }
+        .player-card { background: rgba(255,255,255,0.1); padding: 10px; margin: 5px; border-radius: 10px; display: inline-block; width: 140px; }
+        #live-hint { font-size: 24px; color: #ffeb3b; margin: 20px; min-height: 30px; }
+        #word-display { font-size: 32px; font-weight: bold; color: #4caf50; }
+    </style>
 </head>
-
 <body>
 
 <div id="menu" class="screen active">
-  <h2>Elians</h2>
-  <button class="btn" onclick="createRoom()">Создать комнату</button>
-  <input id="joinCode" placeholder="Код комнаты">
-  <button class="btn" onclick="joinRoom()">Войти</button>
-  <button class="btn" onclick="getOnline()">Список онлайн</button>
-</div>
-
-<div id="online" class="screen">
-  <h3>Онлайн игроки</h3>
-  <div id="onlineList"></div>
-  <button class="btn" onclick="show('menu')">Назад</button>
+    <h1>ELIANS</h1>
+    <button class="btn" onclick="createRoom()">Создать комнату</button><br>
+    <input id="joinCode" placeholder="КОД" style="padding: 10px; border-radius: 10px;"><br>
+    <button class="btn" onclick="joinRoom()">Войти</button>
+    <button class="btn" onclick="getOnline()">Кто в сети?</button>
 </div>
 
 <div id="room" class="screen">
-  <h3>Комната: <span id="roomId"></span></h3>
-  <div id="players"></div>
-  <button class="btn" onclick="startRound()">Начать раунд</button>
+    <h2 id="roomTitle">Комната: ---</h2>
+    <div id="playerList"></div>
+    <button class="btn" onclick="startRound()">НАЧАТЬ ИГРУ</button>
 </div>
 
 <div id="game" class="screen">
-  <h3>Игра идёт</h3>
-  <div>⏱ <span id="time">60</span> сек</div>
-
-  <div class="game-grid">
-    <div class="player">Игрок 1 — A</div>
-    <div class="player">Игрок 2 — A</div>
-    <div class="player">Игрок 3 — B</div>
-    <div class="player">Игрок 4 — B</div>
-  </div>
-
-  <input id="hint" placeholder="Подсказка" oninput="sendHint()"><br>
-  <input id="guess" placeholder="Угадать" onkeypress="sendGuess(event)"><br>
-
-  <button class="btn" onclick="skipWord()">СКИП</button>
-  <button class="btn" onclick="correctWord()">УГАДАЛИ</button>
-  <button class="btn" onclick="lastWord()">ПОСЛЕДНЕЕ СЛОВО</button>
-</div>
-
-<div id="lastWordOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; color:white; align-items:center; justify-content:center;">
-  <h1>ПОСЛЕДНЕЕ СЛОВО!<br>Пробуйте угадать!</h1>
+    <div id="scoreBoard">Команда A: 0 | Команда B: 0</div>
+    <div id="word-display"></div>
+    <div id="live-hint">Ожидание подсказки...</div>
+    
+    <div id="controls">
+        <input id="hintInput" placeholder="Пиши подсказку здесь..." oninput="sendHint()" style="display:none; width: 80%; padding: 10px;">
+        <input id="guessInput" placeholder="Твоя догадка..." onkeypress="sendGuess(event)" style="width: 80%; padding: 10px;">
+    </div>
+    <br>
+    <button id="correctBtn" class="btn" onclick="correct()" style="display:none; background: green;">УГАДАЛИ!</button>
 </div>
 
 <script>
-const WS_URL = location.protocol === "https:"
-  ? `wss://${location.host}`
-  : `ws://${location.host}`;
+    const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
+    const userId = "u" + Math.random().toString(36).substring(7);
+    const username = "Игрок_" + Math.floor(Math.random()*1000);
+    let myRole = "guesser";
 
-const ws = new WebSocket(WS_URL);
+    ws.onopen = () => ws.send(JSON.stringify({ type: "REGISTER", userId, username }));
 
-const userId = "u" + Math.random().toString(36).substring(2,9);
-const username = "Игрок_" + userId;
-let currentRoom = null;
+    ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "ROOM_CREATED") {
+            document.getElementById("roomTitle").innerText = "Код: " + data.roomId;
+            showScreen("room");
+        }
+        if (data.type === "PLAYERS_UPDATE") {
+            const list = document.getElementById("playerList");
+            list.innerHTML = data.players.map(p => `<div class="player-card">${p.name}<br><b>Ком: ${p.team}</b></div>`).join("");
+            showScreen("room");
+        }
+        if (data.type === "ROUND_START") {
+            showScreen("game");
+            setupRole(data.role, data.word);
+        }
+        if (data.type === "HINT_LIVE") {
+            document.getElementById("live-hint").innerText = data.from + ": " + data.text;
+        }
+        if (data.type === "SCORE_UPDATE") {
+            document.getElementById("scoreBoard").innerText = `Команда A: ${data.scores.A} | Команда B: ${data.scores.B}`;
+            if (userId === data.presenterId) setupRole("leader", data.newWord);
+        }
+    };
 
-function show(id){
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
+    function showScreen(id) {
+        document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+        document.getElementById(id).classList.add("active");
+    }
 
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type:"REGISTER",
-    userId,
-    username
-  }));
-};
+    function setupRole(role, word) {
+        myRole = role;
+        const isLeader = (role === "leader");
+        document.getElementById("hintInput").style.display = isLeader ? "inline" : "none";
+        document.getElementById("correctBtn").style.display = isLeader ? "inline" : "none";
+        document.getElementById("word-display").innerText = isLeader ? "СЛОВО: " + word : "УГАДЫВАЙТЕ!";
+        document.getElementById("hintInput").value = "";
+        document.getElementById("live-hint").innerText = "";
+    }
 
-ws.onmessage = (e) => {
-  const data = JSON.parse(e.data);
+    function createRoom() { ws.send(JSON.stringify({ type: "CREATE_ROOM" })); }
+    function joinRoom() { ws.send(JSON.stringify({ type: "JOIN_ROOM", roomId: document.getElementById("joinCode").value.toUpperCase() })); }
+    function startRound() { ws.send(JSON.stringify({ type: "START_ROUND" })); }
+    function sendHint() { ws.send(JSON.stringify({ type: "HINT", text: document.getElementById("hintInput").value })); }
+    function correct() { ws.send(JSON.stringify({ type: "CORRECT" })); }
 
-  switch(data.type){
-
-    case "ROOM_CREATED":
-      currentRoom = data.roomId;
-      document.getElementById("roomId").innerText = currentRoom;
-      show("room");
-      break;
-
-    case "PLAYERS_UPDATE":
-      const list = document.getElementById("players");
-      list.innerHTML = "";
-      data.players.forEach(p=>{
-        const d = document.createElement("div");
-        d.innerText = p;
-        list.appendChild(d);
-      });
-      break;
-
-    case "ONLINE_USERS":
-      const online = document.getElementById("onlineList");
-      online.innerHTML = "";
-      data.users.forEach(u=>{
-        const d = document.createElement("div");
-        d.innerText = u.username;
-
-        const btn = document.createElement("button");
-        btn.innerText = "Пригласить";
-        btn.onclick = ()=>invite(u.userId);
-
-        d.appendChild(btn);
-        online.appendChild(d);
-      });
-      show("online");
-      break;
-
-    case "INVITE":
-      alert(`Приглашение от ${data.from} в комнату ${data.roomId}`);
-      currentRoom = data.roomId;
-      ws.send(JSON.stringify({type:"JOIN_ROOM", roomId:data.roomId}));
-      show("room");
-      break;
-
-    case "ROUND_START":
-      document.getElementById("time").innerText = data.time;
-      show("game");
-      break;
-
-    case "TIMER":
-      document.getElementById("time").innerText = data.time;
-      break;
-
-    case "LAST_WORD":
-      document.getElementById("lastWordOverlay").style.display="flex";
-      break;
-  }
-};
-
-function createRoom(){
-  ws.send(JSON.stringify({type:"CREATE_ROOM"}));
-}
-
-function joinRoom(){
-  const code = document.getElementById("joinCode").value.trim();
-  ws.send(JSON.stringify({type:"JOIN_ROOM", roomId:code}));
-}
-
-function getOnline(){
-  ws.send(JSON.stringify({type:"GET_ONLINE_USERS"}));
-}
-
-function invite(targetUserId){
-  ws.send(JSON.stringify({
-    type:"INVITE",
-    roomId:currentRoom,
-    targetUserId
-  }));
-}
-
-function startRound(){
-  ws.send(JSON.stringify({type:"START_ROUND"}));
-}
-
-function sendHint(){
-  ws.send(JSON.stringify({
-    type:"HINT",
-    text:document.getElementById("hint").value
-  }));
-}
-
-function sendGuess(e){
-  if(e.key==="Enter"){
-    ws.send(JSON.stringify({
-      type:"GUESS",
-      text:document.getElementById("guess").value
-    }));
-    document.getElementById("guess").value="";
-  }
-}
-
-function skipWord(){
-  ws.send(JSON.stringify({type:"SKIP"}));
-}
-
-function correctWord(){
-  ws.send(JSON.stringify({type:"CORRECT"}));
-}
-
-function lastWord(){
-  ws.send(JSON.stringify({type:"LAST_WORD"}));
-}
+    function getOnline() {
+        ws.send(JSON.stringify({ type: "GET_ONLINE_USERS" }));
+        // Для теста просто выведем в консоль или алерт
+    }
 </script>
 </body>
 </html>
