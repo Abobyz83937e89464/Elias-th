@@ -3,196 +3,248 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Elians Chat</title>
+    <title>Elias Arena Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --neon: #00f3ff; --pink: #bc13fe; --bg: #050716; }
-        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
         
-        .screen { display: none; flex-direction: column; align-items: center; padding: 20px; height: 100%; width: 100%; box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; }
+
+        /* Экраны */
+        .screen { display: none; height: 100vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
         .active { display: flex; }
 
-        .btn {
-            background: linear-gradient(135deg, var(--neon), var(--pink));
-            border: none; border-radius: 20px; padding: 15px; color: white; font-weight: bold; width: 90%; margin: 10px 0;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        /* Игровая Арена */
+        .arena {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 120px 1fr 120px 80px;
+            height: 100vh;
+            padding: 15px;
+            gap: 15px;
+            box-sizing: border-box;
         }
-        input { background: rgba(255,255,255,0.1); border: 1px solid var(--neon); padding: 15px; border-radius: 15px; color: white; width: 80%; text-align: center; font-size: 1.1rem; margin: 10px 0; }
 
-        /* Игровой интерфейс */
-        .top-bar { width: 100%; padding: 10px; background: rgba(0,0,0,0.5); position: relative; }
-        .timer-line { height: 5px; background: var(--pink); width: 100%; position: absolute; top: 0; left: 0; transition: width 1s linear; }
-        .score-board { display: flex; justify-content: space-around; font-size: 1.2rem; font-weight: bold; }
-        
-        .word-card { 
-            background: linear-gradient(45deg, #1a1a2e, #16213e); 
-            border: 2px solid var(--neon); padding: 20px; border-radius: 15px; margin: 10px; width: 85%;
-            font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px var(--neon);
-            box-shadow: 0 0 20px rgba(0,243,255,0.2);
+        /* Карточки игроков (закругленные таблицы) */
+        .player-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid #222;
+            border-radius: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
         }
+        .user-icon { width: 35px; height: 35px; fill: #555; margin-bottom: 5px; }
+        
+        /* Анимации активных игроков */
+        .active-exp { border-color: var(--pink); box-shadow: 0 0 20px var(--pink); transform: scale(1.05); }
+        .active-exp .user-icon { fill: var(--pink); }
+        .active-guess { border-color: var(--neon); box-shadow: 0 0 20px var(--neon); transform: scale(1.05); }
+        .active-guess .user-icon { fill: var(--neon); }
+
+        /* Хаб в центре */
+        .center-hub {
+            grid-column: span 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .word-display {
+            font-size: 2.4rem;
+            font-weight: 900;
+            color: var(--neon);
+            text-shadow: 0 0 15px var(--neon);
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .timer-circle {
+            width: 55px;
+            height: 55px;
+            border: 3px solid var(--pink);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+        }
+        .low-time { border-color: #ff4757; color: #ff4757; animation: shake 0.5s infinite; }
+        @keyframes shake { 0%{transform:rotate(0)} 25%{transform:rotate(5deg)} 75%{transform:rotate(-5deg)} 100%{transform:rotate(0)} }
 
         /* Чат */
-        #chatBox {
-            flex: 1; width: 100%; overflow-y: auto; padding: 10px; text-align: left;
-            background: rgba(0,0,0,0.2); border-top: 1px solid #333; margin-bottom: 60px; /* место под инпут */
+        #chat {
+            grid-column: span 2;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #1a1a1a;
         }
-        .msg { margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.05); font-size: 0.95rem; }
+        .msg {
+            background: rgba(255,255,255,0.06);
+            padding: 10px 15px;
+            border-radius: 15px;
+            animation: msgIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0;
+            transform: translateY(15px);
+        }
+        @keyframes msgIn { to { opacity: 1; transform: translateY(0); } }
         .msg b { color: var(--neon); }
-        .sys-msg { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; text-align: center; }
 
-        .input-area {
-            position: fixed; bottom: 0; left: 0; width: 100%; padding: 10px; background: #111;
-            display: flex; gap: 10px; box-sizing: border-box;
-        }
-        .chat-input { flex: 1; margin: 0; text-align: left; }
-        .send-btn { width: 50px; background: var(--neon); border: none; border-radius: 10px; color: black; font-weight: bold; margin: 0; }
+        /* Кнопки и ввод */
+        .controls { grid-column: span 2; display: flex; gap: 10px; }
+        input { flex: 1; background: #111; border: 1px solid #333; border-radius: 15px; color: white; padding: 15px; outline: none; }
+        input:focus { border-color: var(--neon); }
+        .btn-skip { background: #ff4757; border: none; border-radius: 15px; padding: 0 25px; color: white; font-weight: bold; cursor: pointer; }
+        
+        .main-btn { background: var(--neon); color: #000; border: none; padding: 18px 40px; border-radius: 20px; font-weight: bold; font-size: 1.1rem; width: 80%; cursor: pointer; }
+
+        /* Победная вспышка */
+        #flash { position: fixed; inset: 0; background: var(--neon); opacity: 0; pointer-events: none; z-index: 100; transition: 0.3s; }
     </style>
 </head>
 <body>
 
+<div id="flash"></div>
+
 <div id="menu" class="screen active">
-    <h1 style="font-size: 3rem; text-shadow: 0 0 20px var(--pink);">ELIANS</h1>
-    <button class="btn" onclick="ws.send(JSON.stringify({type:'CREATE_ROOM'}))">СОЗДАТЬ ИГРУ</button>
-    <input id="joinCode" placeholder="Код комнаты">
-    <button class="btn" style="background: transparent; border: 1px solid var(--neon);" onclick="join()">ВОЙТИ</button>
+    <h1 style="font-size: 3rem; margin-bottom: 40px; text-shadow: 0 0 20px var(--neon);">ARENA</h1>
+    <button class="main-btn" onclick="create()">СОЗДАТЬ КОМНАТУ</button>
+    <div style="margin: 20px 0; color: #555;">или введи код друга</div>
+    <input id="joinCode" placeholder="КОД ИГРЫ" style="width: 70%; text-align: center; margin-bottom: 10px;">
+    <button onclick="join()" style="background:none; border: 1px solid #444; color: white; padding: 12px 30px; border-radius: 15px;">ВОЙТИ</button>
 </div>
 
 <div id="lobby" class="screen">
-    <h2>КОД: <span id="lobbyCode" style="color:var(--neon)">---</span></h2>
-    <div id="lobbyList">Ждем игроков...</div>
-    <button id="startBtn" class="btn" style="display:none; background:#2ecc71; margin-top:20px;" onclick="ws.send(JSON.stringify({type:'START_GAME'}))">НАЧАТЬ</button>
-    <button class="btn" style="background:transparent; border:1px solid #555" onclick="invite()">ПРИГЛАСИТЬ</button>
+    <h2 style="color: #666;">КОД КОМНАТЫ</h2>
+    <h1 id="lCode" style="color: var(--neon); font-size: 3rem; margin: 10px 0;">-</h1>
+    <div id="lList" style="margin: 30px 0; font-size: 1.3rem;">Ждем игроков...</div>
+    <button id="startBtn" class="main-btn" style="background: #2ecc71; display: none;" onclick="ws.send(JSON.stringify({type:'START_GAME'}))">НАЧАТЬ ИГРУ</button>
+    <p id="waitText" style="color: #444;">Только создатель может запустить игру</p>
 </div>
 
-<div id="game" class="screen" style="padding: 0;">
-    <div class="top-bar">
-        <div class="timer-line" id="timerBar"></div>
-        <div class="score-board">
-            <span style="color:var(--neon)">A: <span id="scoreA">0</span></span>
-            <span style="color:var(--pink)">B: <span id="scoreB">0</span></span>
+<div id="game" class="arena" style="display:none">
+    <div id="p0" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
+    <div id="p1" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
+    
+    <div class="center-hub">
+        <div id="timer" class="timer-circle">60</div>
+        <div id="wordBox" class="word-display">ПРИГОТОВИТЬСЯ!</div>
+        <div style="margin-top: 10px; font-weight: bold;">
+            <span style="color: var(--neon)">A: <span id="scoreA">0</span></span> | 
+            <span style="color: var(--pink)">B: <span id="scoreB">0</span></span>
         </div>
     </div>
 
-    <div id="explainerZone" style="display:none; width: 100%; display: flex; justify-content: center;">
-        <div class="word-card" id="wordTarget">СЛОВО</div>
-    </div>
-    
-    <div id="statusZone" style="padding: 10px; opacity: 0.8;"></div>
+    <div id="p2" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
+    <div id="p3" class="player-card"><svg class="user-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span class="p-name">...</span></div>
 
-    <div id="chatBox"></div>
+    <div id="chat"></div>
 
-    <div class="input-area" id="inputArea" style="display:none;">
-        <input id="msgInput" class="chat-input" placeholder="Введите сообщение...">
-        <button class="send-btn" onclick="sendMsg()">➤</button>
+    <div class="controls">
+        <input id="in" placeholder="Ваш ответ...">
+        <button id="skipBtn" class="btn-skip" onclick="ws.send(JSON.stringify({type:'SKIP_WORD'}))" style="display:none">SKIP</button>
     </div>
 </div>
 
 <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
+    
     const ws = new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}`);
-    let myRoom = "";
+    let myName = tg.initDataUnsafe.user?.first_name || "Игрок";
 
-    ws.onopen = () => ws.send(JSON.stringify({ type: "REGISTER", userId: tg.initDataUnsafe.user?.id, username: tg.initDataUnsafe.user?.first_name || "Guest" }));
+    ws.onopen = () => ws.send(JSON.stringify({type:"REGISTER", username: myName}));
 
     ws.onmessage = (e) => {
         const d = JSON.parse(e.data);
-        
+
         if(d.type === "ROOM_CREATED" || d.type === "JOIN_SUCCESS") {
-            myRoom = d.roomId;
-            document.getElementById('lobbyCode').innerText = d.roomId;
-            showScreen('lobby');
+            document.getElementById('lCode').innerText = d.roomId;
+            showS('lobby');
         }
 
         if(d.type === "LOBBY_UPDATE") {
-            document.getElementById('lobbyList').innerHTML = d.players.map(p => `<div>👤 ${p}</div>`).join("");
-            if(d.count >= 2) document.getElementById('startBtn').style.display = "block";
-        }
-
-        if(d.type === "ROUND_START") {
-            showScreen('game');
-            document.getElementById('chatBox').innerHTML = ''; // Очистка чата
-            startTimer(d.time);
-            
-            // Настройка UI по ролям
-            const expZone = document.getElementById('explainerZone');
-            const statZone = document.getElementById('statusZone');
-            const inpArea = document.getElementById('inputArea');
-            const inp = document.getElementById('msgInput');
-
-            expZone.style.display = 'none';
-            inpArea.style.display = 'none';
-            
-            if(d.role === 'explainer') {
-                expZone.style.display = 'flex';
-                document.getElementById('wordTarget').innerText = d.word;
-                statZone.innerText = "Объясняй слово команде!";
-                inpArea.style.display = 'flex';
-                inp.placeholder = "Пиши подсказку...";
-            } else if(d.role === 'guesser') {
-                statZone.innerText = `Угадывай! Объясняет: ${d.explainerName}`;
-                inpArea.style.display = 'flex';
-                inp.placeholder = "Пиши ответ сюда...";
-            } else {
-                statZone.innerText = `Смотри! Ход команды противника. Объясняет: ${d.explainerName}`;
-                // Зрители видят чат, но писать не могут (можно разрешить, если убрать этот if)
+            document.getElementById('lList').innerText = d.players.join(" • ");
+            if(d.players[0] === myName) {
+                document.getElementById('startBtn').style.display = "block";
+                document.getElementById('waitText').style.display = "none";
             }
         }
 
-        if(d.type === "CHAT_NEW") {
-            const box = document.getElementById('chatBox');
-            const msgDiv = document.createElement('div');
-            msgDiv.className = d.isSystem ? 'msg sys-msg' : 'msg';
-            msgDiv.innerHTML = d.isSystem ? d.text : `<b>${d.from}:</b> ${d.text}`;
-            box.appendChild(msgDiv);
-            box.scrollTop = box.scrollHeight; // Автоскролл
+        if(d.type === "ROUND_START") {
+            showS('game');
+            document.getElementById('game').style.display = 'grid';
+            renderArena(d);
         }
 
-        if(d.type === "NEW_WORD") {
-            // Анимация смены слова
-            const card = document.getElementById('wordTarget');
-            card.style.transform = "scale(0.8)";
-            setTimeout(() => {
-                card.innerText = d.word;
-                card.style.transform = "scale(1)";
-            }, 200);
+        if(d.type === "TIMER_TICK") {
+            const t = document.getElementById('timer');
+            t.innerText = d.time;
+            t.classList.toggle('low-time', d.time <= 10);
+        }
+
+        if(d.type === "CHAT_NEW") {
+            const chat = document.getElementById('chat');
+            const m = document.createElement('div');
+            m.className = 'msg';
+            m.innerHTML = `<b>${d.from}:</b> ${d.text}`;
+            chat.appendChild(m);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        if(d.type === "WIN_ANIM") {
+            const f = document.getElementById('flash');
+            f.style.opacity = 0.4;
+            setTimeout(() => f.style.opacity = 0, 400);
         }
 
         if(d.type === "SCORE_UPDATE") {
             document.getElementById('scoreA').innerText = d.scores.A;
             document.getElementById('scoreB').innerText = d.scores.B;
         }
-        
-        if(d.type === "ERROR") tg.showAlert(d.text);
+
+        if(d.type === "NEW_WORD") document.getElementById('wordBox').innerText = d.word;
     };
 
-    function sendMsg() {
-        const inp = document.getElementById('msgInput');
-        const txt = inp.value.trim();
-        if(txt) {
-            ws.send(JSON.stringify({ type: "CHAT_MESSAGE", text: txt }));
-            inp.value = '';
+    function renderArena(d) {
+        document.getElementById('wordBox').innerText = d.word || "КТО-ТО ГОВОРИТ...";
+        document.getElementById('skipBtn').style.display = (d.role === 'explainer') ? 'block' : 'none';
+        
+        d.playersInfo.forEach((p, i) => {
+            const card = document.getElementById('p' + i);
+            if(card) {
+                card.querySelector('.p-name').innerText = p.name;
+                card.classList.remove('active-exp', 'active-guess');
+                if(p.name === d.explainerName) card.classList.add('active-exp');
+                else if(p.team === d.team) card.classList.add('active-guess');
+            }
+        });
+    }
+
+    function showS(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function create() { ws.send(JSON.stringify({type:"CREATE_ROOM"})); }
+    function join() { ws.send(JSON.stringify({type:"JOIN_ROOM", roomId: document.getElementById('joinCode').value})); }
+
+    document.getElementById('in').onkeypress = (e) => {
+        if(e.key === 'Enter') {
+            ws.send(JSON.stringify({type:"CHAT_MESSAGE", text: e.target.value}));
+            e.target.value = '';
         }
-    }
-    
-    // Отправка по Enter
-    document.getElementById('msgInput').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') sendMsg();
-    });
-
-    function startTimer(sec) {
-        const bar = document.getElementById('timerBar');
-        bar.style.transition = 'none';
-        bar.style.width = '100%';
-        setTimeout(() => {
-            bar.style.transition = `width ${sec}s linear`;
-            bar.style.width = '0%';
-        }, 100);
-    }
-
-    function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
-    function join() { const c = document.getElementById('joinCode').value; if(c) ws.send(JSON.stringify({type:"JOIN_ROOM", roomId: c})); }
-    function invite() { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent("Играем в Alias! Код: " + myRoom)}`); }
+    };
 </script>
 </body>
 </html>
