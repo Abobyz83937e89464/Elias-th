@@ -9,42 +9,38 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ==========================================================
-// НАСТРОЙКИ (Вставь свои данные здесь)
-// ==========================================================
-const BOT_TOKEN = "8512268012:AAEyjeKsfMxSDNBjNSdryTayLuAPu3w27VA"; 
-const APP_URL = "https://elias-th.onrender.com"; 
-// ==========================================================
-
+// --- НАСТРОЙКИ ---
+const BOT_TOKEN = process.env.BOT_TOKEN; // Вставь токен в Environment Variables
+const APP_URL = process.env.APP_URL;     // Вставь ссылку на Render
 const PORT = process.env.PORT || 3000;
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 app.use(express.static(__dirname));
 
-// Настройка Telegram Бота
+// --- БОТ ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Установка кнопки в меню бота
 bot.setChatMenuButton({ 
     menu_button: JSON.stringify({ 
         type: "web_app", 
-        text: "Играть в Elias", 
+        text: "Играть", 
         web_app: { url: APP_URL } 
     }) 
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🏆 *Добро пожаловать в Elias Arena!*\n\nНажми кнопку, чтобы создать комнату и пригласить друзей.", {
+    bot.sendMessage(msg.chat.id, "🏆 *Elias Arena ждет!*\n\nЖми кнопку ниже, чтобы начать игру.", {
         parse_mode: "Markdown",
         reply_markup: {
-            inline_keyboard: [[{ text: "🚀 ВОЙТИ В АРЕНУ", web_app: { url: APP_URL } }]]
+            inline_keyboard: [[{ text: "🚀 ВОЙТИ В ИГРУ", web_app: { url: APP_URL } }]]
         }
     });
 });
 
-// Игровая логика
+// --- ДАННЫЕ ---
 const users = new Map();
 const rooms = new Map();
 const wordList = ["Абрикос", "Астероид", "Адвокат", "Альянс", "Амбиция", "Археолог", "Бриллиант", "Бумеранг", "Вакуум", "Вердикт", "Гравитация", "Демократия", "Дирижер", "Интуиция", "Искусство", "Калейдоскоп", "Лабиринт", "Масштаб", "Метеорит", "Ностальгия", "Оптимизм", "Парадокс", "Перспектива", "Резонанс", "Символ", "Стратегия", "Технология", "Философия", "Харизма", "Эволюция", "Энергия", "Юмор", "Явление", "Атмосфера", "Балкон", "Валюта", "Гармония", "Диалог", "Жанр", "Зенит", "Импульс", "Компас", "Легенда", "Магнит", "Нюанс", "Орбита", "Пилот", "Радар", "Статус", "Трофей", "Утопия", "Финал", "Цикл", "Шедевр", "Эскиз", "Эпоха"];
@@ -57,6 +53,7 @@ function broadcast(roomId, data) {
     }
 }
 
+// --- WEBSOCKET ---
 wss.on("connection", (ws) => {
     users.set(ws, { username: "Guest", roomId: null });
 
@@ -75,11 +72,12 @@ wss.on("connection", (ws) => {
                 rooms.set(rid, {
                     id: rid, players: [ws], teams: { A: [], B: [] },
                     scores: { A: 0, B: 0 }, state: 'LOBBY',
+                    mode: msg.mode || 'online', // Сохраняем режим
                     turn: { team: 'A', explainerIdx: { A: 0, B: 0 } },
                     currentWord: "", timer: null
                 });
                 user.roomId = rid;
-                ws.send(JSON.stringify({ type: "ROOM_CREATED", roomId: rid }));
+                ws.send(JSON.stringify({ type: "ROOM_CREATED", roomId: rid, mode: msg.mode }));
                 break;
 
             case "JOIN_ROOM":
@@ -89,6 +87,8 @@ wss.on("connection", (ws) => {
                     user.roomId = rJoin.id;
                     ws.send(JSON.stringify({ type: "JOIN_SUCCESS", roomId: rJoin.id }));
                     broadcast(rJoin.id, { type: "LOBBY_UPDATE", players: rJoin.players.map(p => users.get(p).username) });
+                } else {
+                    ws.send(JSON.stringify({ type: "ERROR", msg: "Комната не найдена или игра уже идет" }));
                 }
                 break;
 
@@ -204,7 +204,6 @@ function handleSkip(ws) {
     const user = users.get(ws);
     const r = rooms.get(user.roomId);
     if (!r || r.state !== 'PLAYING') return;
-
     const explainerWs = r.teams[r.turn.team][r.turn.explainerIdx[r.turn.team] % r.teams[r.turn.team].length];
 
     if (ws === explainerWs) {
@@ -212,8 +211,8 @@ function handleSkip(ws) {
         r.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
         broadcast(r.id, { type: "SCORE_UPDATE", scores: r.scores });
         ws.send(JSON.stringify({ type: "NEW_WORD", word: r.currentWord }));
-        broadcast(r.id, { type: "CHAT_NEW", from: "SYSTEM", text: "Слово пропущено (-1 очко)" });
+        broadcast(r.id, { type: "CHAT_NEW", from: "SYSTEM", text: "Пропуск слова (-1 очко)" });
     }
 }
 
-server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0');
