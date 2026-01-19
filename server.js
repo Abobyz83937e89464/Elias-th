@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const PORT = process.env.PORT || 3000;
-const BOT_TOKEN = "8522033211:AAHlMuTys-bIQAWNMFQA0DnOS4CAMYRyj5U";
+const BOT_TOKEN = "8522033211:AAFW_vrhSl1S35APmBSd5_DCv8T9YpR9f-8";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
