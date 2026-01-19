@@ -6,282 +6,124 @@ import TelegramBot from 'node-telegram-bot-api';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ====== НАСТРОЙКИ ======
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = "8522033211:AAHlMuTys-bIQAWNMFQA0DnOS4CAMYRyj5U";
-if (!BOT_TOKEN) throw new Error("BOT_TOKEN не задан!");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ====== EXPRESS + WS ======
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Health check (важно для Render)
-app.get("/health", (req, res) => res.send("OK"));
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// ====== TELEGRAM BOT (WEBHOOK) ======
-const bot = new TelegramBot(BOT_TOKEN, { polling: false });
-
-const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL
-  ? `https://${process.env.RENDER_EXTERNAL_URL}/bot`
-  : `http://localhost:${PORT}/bot`;
-
-bot.setWebHook(WEBHOOK_URL);
-
-// Приём обновлений от Telegram
-app.post("/bot", (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-// Кнопка Mini App
-const MINI_APP_URL = process.env.RENDER_EXTERNAL_URL
-  ? `https://${process.env.RENDER_EXTERNAL_URL}`
-  : `http://localhost:${PORT}`;
-
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  const text = `Приветствую! 👋\n\n` +
-    `Вы попали в бота *Elians*, созданного Morpheus (Nikita).\n\n` +
-    `👉 Нажмите кнопку *Elians* ниже, чтобы открыть приложение и начать игру.\n\n` +
-    `Удачной игры! ✨`;
-
-  await bot.sendMessage(chatId, text, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [[
-        { text: "🎮 Elians", web_app: { url: MINI_APP_URL } }
-      ]]
-    }
-  });
-});
-
-// ====== ПАМЯТЬ (временное хранилище) ======
-const rooms = new Map();   // roomId -> { players, scores, timer, timeLeft }
-const users = new Map();   // ws -> { userId, username, roomId, tgId }
-
-// ====== УТИЛИТЫ ======
-function shortRoomId() {
-  return Math.random().toString(36).substring(2, 7).toUpperCase();
-}
+// База данных в памяти
+const rooms = new Map(); 
+const users = new Map(); // ws -> data
+const wordList = ["Самолет", "Телефон", "Компьютер", "Пицца", "Космос", "Гитара", "Остров", "Ниндзя", "Зомби", "Арбуз", "Шоколад", "Танк", "Вертолет", "Подводная лодка", "Кенгуру"];
 
 function broadcast(roomId, data) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  room.players.forEach(ws => {
-    if (ws.readyState === 1) ws.send(JSON.stringify(data));
-  });
+    const room = rooms.get(roomId);
+    if (room) {
+        room.players.forEach(p => { if (p.readyState === 1) p.send(JSON.stringify(data)); });
+    }
 }
 
-// ====== WEBSOCKET ======
 wss.on("connection", (ws) => {
+    users.set(ws, { userId: null, username: "Гость", roomId: null, team: null, tgId: null });
 
-  ws.on("message", async (raw) => {
-    const msg = JSON.parse(raw);
-
-    switch (msg.type) {
-
-      case "REGISTER":
-        users.set(ws, {
-          userId: msg.userId,
-          username: msg.username,
-          tgId: msg.tgId || null,
-          roomId: null
-        });
-        ws.send(JSON.stringify({ type: "REGISTERED" }));
-        break;
-
-      case "GET_ONLINE_USERS":
-        const online = Array.from(users.values()).map(u => ({
-          userId: u.userId,
-          username: u.username
-        }));
-        ws.send(JSON.stringify({ type: "ONLINE_USERS", users: online }));
-        break;
-
-      case "CREATE_ROOM": {
-        const roomId = shortRoomId();
-        rooms.set(roomId, {
-          host: ws,
-          players: [ws],
-          scores: { A: 0, B: 0 },
-          timer: null,
-          timeLeft: 60
-        });
-
-        users.get(ws).roomId = roomId;
-
-        ws.send(JSON.stringify({
-          type: "ROOM_CREATED",
-          roomId
-        }));
-        break;
-      }
-
-      case "INVITE": {
-        const { roomId, targetUserId } = msg;
-        const room = rooms.get(roomId);
-
-        if (!room) {
-          ws.send(JSON.stringify({ type: "ERROR", text: "Комната не найдена" }));
-          return;
-        }
-
-        let targetWs = null;
-        let targetUser = null;
-
-        for (let [sock, u] of users.entries()) {
-          if (u.userId === targetUserId) {
-            targetWs = sock;
-            targetUser = u;
-            break;
-          }
-        }
-
-        if (!targetWs) {
-          ws.send(JSON.stringify({ type: "ERROR", text: "Пользователь не онлайн" }));
-          return;
-        }
-
-        targetWs.send(JSON.stringify({
-          type: "INVITE",
-          roomId,
-          from: users.get(ws).username
-        }));
-
-        if (targetUser.tgId) {
-          await bot.sendMessage(
-            targetUser.tgId,
-            `📨 Вас пригласили в комнату *${roomId}*\nОткройте приложение Elians.`,
-            { parse_mode: "Markdown" }
-          );
-        }
-        break;
-      }
-
-      case "JOIN_ROOM": {
-        const { roomId } = msg;
-        const room = rooms.get(roomId);
-
-        if (!room) {
-          ws.send(JSON.stringify({ type: "ERROR", text: "Комната не найдена" }));
-          return;
-        }
-
-        if (!room.players.includes(ws)) {
-          room.players.push(ws);
-        }
-
-        users.get(ws).roomId = roomId;
-
-        broadcast(roomId, {
-          type: "PLAYERS_UPDATE",
-          players: room.players.map(p => users.get(p).username)
-        });
-        break;
-      }
-
-      case "START_ROUND": {
+    ws.on("message", (raw) => {
+        const msg = JSON.parse(raw);
         const user = users.get(ws);
-        const room = rooms.get(user.roomId);
-        if (!room) return;
 
-        room.timeLeft = 60;
+        switch (msg.type) {
+            case "REGISTER":
+                user.userId = msg.userId;
+                user.username = msg.username;
+                user.tgId = msg.tgId;
+                break;
 
-        room.timer = setInterval(() => {
-          room.timeLeft--;
+            case "GET_ONLINE_USERS":
+                const online = Array.from(users.values())
+                    .filter(u => u.userId && u.userId !== user.userId)
+                    .map(u => ({ userId: u.userId, username: u.username }));
+                ws.send(JSON.stringify({ type: "ONLINE_USERS", users: online }));
+                break;
 
-          broadcast(user.roomId, {
-            type: "TIMER",
-            time: room.timeLeft
-          });
+            case "CREATE_ROOM":
+                const rid = Math.random().toString(36).substring(2, 7).toUpperCase();
+                rooms.set(rid, {
+                    players: [ws],
+                    scores: { A: 0, B: 0 },
+                    currentWord: "",
+                    presenterIdx: 0,
+                    status: "waiting"
+                });
+                user.roomId = rid;
+                user.team = "A";
+                ws.send(JSON.stringify({ type: "ROOM_CREATED", roomId: rid }));
+                break;
 
-          if (room.timeLeft <= 0) {
-            clearInterval(room.timer);
-            broadcast(user.roomId, { type: "LAST_WORD" });
-          }
-        }, 1000);
+            case "JOIN_ROOM":
+                const roomToJoin = rooms.get(msg.roomId);
+                if (roomToJoin) {
+                    roomToJoin.players.push(ws);
+                    user.roomId = msg.roomId;
+                    user.team = roomToJoin.players.length % 2 === 0 ? "B" : "A";
+                    broadcast(msg.roomId, {
+                        type: "PLAYERS_UPDATE",
+                        players: roomToJoin.players.map(p => ({ name: users.get(p).username, team: users.get(p).team }))
+                    });
+                }
+                break;
 
-        broadcast(user.roomId, {
-          type: "ROUND_START",
-          word: "САМОЛЁТ",
-          time: 60
-        });
-        break;
-      }
+            case "INVITE":
+                const target = Array.from(users.entries()).find(([s, u]) => u.userId === msg.targetUserId);
+                if (target && target[1].tgId) {
+                    bot.sendMessage(target[1].tgId, `📩 ${user.username} зовет тебя в игру Elians!\nКод комнаты: ${msg.roomId}`);
+                }
+                break;
 
-      case "HINT":
-        broadcast(users.get(ws).roomId, {
-          type: "HINT",
-          text: msg.text,
-          from: users.get(ws).username
-        });
-        break;
+            case "START_ROUND":
+                const r = rooms.get(user.roomId);
+                r.status = "playing";
+                r.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
+                const presenter = r.players[r.presenterIdx];
+                
+                r.players.forEach(p => {
+                    const isP = (p === presenter);
+                    p.send(JSON.stringify({
+                        type: "ROUND_START",
+                        word: isP ? r.currentWord : null,
+                        role: isP ? "leader" : "guesser"
+                    }));
+                });
+                break;
 
-      case "GUESS":
-        broadcast(users.get(ws).roomId, {
-          type: "GUESS",
-          text: msg.text,
-          from: users.get(ws).username
-        });
-        break;
+            case "HINT":
+                broadcast(user.roomId, { type: "HINT_LIVE", text: msg.text, from: user.username });
+                break;
 
-      case "SKIP": {
-        const room = rooms.get(users.get(ws).roomId);
-        room.scores.A -= 1;
-        broadcast(users.get(ws).roomId, {
-          type: "SCORE_UPDATE",
-          scores: room.scores
-        });
-        break;
-      }
+            case "CORRECT":
+                const rCorr = rooms.get(user.roomId);
+                rCorr.scores[user.team]++;
+                rCorr.currentWord = wordList[Math.floor(Math.random() * wordList.length)];
+                const nextPresenter = rCorr.players[rCorr.presenterIdx];
+                
+                broadcast(user.roomId, { 
+                    type: "SCORE_UPDATE", 
+                    scores: rCorr.scores,
+                    newWord: rCorr.currentWord,
+                    presenterId: users.get(nextPresenter).userId
+                });
+                break;
+        }
+    });
 
-      case "CORRECT": {
-        const room = rooms.get(users.get(ws).roomId);
-        room.scores.A += 1;
-        broadcast(users.get(ws).roomId, {
-          type: "SCORE_UPDATE",
-          scores: room.scores
-        });
-        break;
-      }
-
-      case "LAST_WORD":
-        broadcast(users.get(ws).roomId, { type: "LAST_WORD" });
-        break;
-    }
-  });
-
-  ws.on("close", () => {
-    const user = users.get(ws);
-    if (!user) return;
-
-    const roomId = user.roomId;
-    if (roomId && rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      room.players = room.players.filter(p => p !== ws);
-
-      if (room.players.length === 0) {
-        rooms.delete(roomId);
-      } else {
-        broadcast(roomId, {
-          type: "PLAYERS_UPDATE",
-          players: room.players.map(p => users.get(p)?.username)
-        });
-      }
-    }
-
-    users.delete(ws);
-  });
+    ws.on("close", () => users.delete(ws));
 });
 
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+server.listen(PORT, () => console.log(`Server on ${PORT}`));
