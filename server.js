@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 // НАСТРОЙКИ (ВСТАВЛЕНО)
 // ==========================================================
 const BOT_TOKEN = "8433708366:AAGLNId3cay2vxcOwHJuzbFRJkAPLgkcLBk"; 
-const APP_URL = "https://abobyz83937e89464.github.io/Elias-th/"; 
+const APP_URL = "https://elias-th.onrender.com/"; 
 const PORT = process.env.PORT || 10000;
 
 const app = express();
