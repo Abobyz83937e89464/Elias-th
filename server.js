@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 // ==========================================================
 // НАСТРОЙКИ (ВСТАВЛЕНО)
 // ==========================================================
-const BOT_TOKEN = "8512268012:AAGbmITEltIeXTHaWlqqk7C1MYlpEGDx3J0"; 
+const BOT_TOKEN = "8433708366:AAEpLRHtNdCW7-kVnQgZS0kcUSVOJLpUfUs"; 
 const APP_URL = "https://elias-th.onrender.com"; 
 const PORT = process.env.PORT || 10000;
 
