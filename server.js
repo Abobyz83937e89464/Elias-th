@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 // ==========================================================
 // НАСТРОЙКИ (ВСТАВЛЕНО)
 // ==========================================================
-const BOT_TOKEN = "8433708366:AAEpLRHtNdCW7-kVnQgZS0kcUSVOJLpUfUs"; 
+const BOT_TOKEN = "8433708366:AAE9GT_uyThDZrQHapWT8dGG9HsI-LBmn4U"; 
 const APP_URL = "https://abobyz83937e89464.github.io/Elias-th/"; 
 const PORT = process.env.PORT || 10000;
 
